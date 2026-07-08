@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YMS Dashboard — SPR5</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px; min-height: 100vh;
+      background: #0d0f18; color: #e8eaf2;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: #12152a;
+      border-bottom: 2px solid #FFE600;
+      padding: 10px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; border-left: 3px solid #FFE600; padding-left: 10px; }
+    .logo-title { font-size: 20px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #fff; }
+    .logo-title span { color: #FFE600; }
+    .badge-site { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #FFE600; color: #222; }
+
+    .header-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 12px; }
+    .source-pill {
+      font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+      border: 1px solid rgba(255,230,0,.3); color: #FFE600; background: rgba(255,230,0,.08);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: #00A650;
+      animation: blink 1.4s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    #clock { font-size: 18px; font-weight: 700; color: #FFE600; font-variant-numeric: tabular-nums; }
+    #last-upd { font-size: 10px; color: #666; text-align: right; }
+
+    .refresh-box {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px; padding: 3px 9px; font-size: 11px;
+    }
+    .refresh-box label { color: #888; }
+    #refresh-sel { background: transparent; border: none; font-size: 11px; cursor: pointer; outline: none; color: #fff; }
+    #refresh-sel option { background: #1f2235; }
+
+    /* ── FILTER BAR ── */
+    .filter-bar {
+      padding: 8px 20px; background: #161927;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .fg { display: flex; align-items: center; gap: 5px; }
+    .fg label { font-size: 11px; font-weight: 600; color: #9499b5; white-space: nowrap; }
+    .fg select {
+      background: #1f2235; border: 1px solid rgba(255,255,255,.08);
+      border-radius: 6px; padding: 4px 9px; font-size: 11px; color: #e8eaf2; outline: none;
+    }
+    .fg select option { background: #1f2235; }
+    .btn { border: none; border-radius: 6px; padding: 4px 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+    .btn:hover { opacity: .8; }
+    .btn-ghost { background: #1f2235; color: #9499b5; border: 1px solid rgba(255,255,255,.08); }
+
+    /* ── CONN BAR ── */
+    #conn-bar {
+      display: none; padding: 8px 20px; font-size: 12px; font-weight: 600;
+      text-align: center; border-bottom: 1px solid;
+    }
+    #conn-bar.loading { display: block; background: rgba(52,131,250,.08); color: #3483FA; border-color: rgba(52,131,250,.2); }
+    #conn-bar.err     { display: block; background: rgba(242,61,79,.08); color: #F23D4F; border-color: rgba(242,61,79,.2); }
+
+    /* ── MAIN ── */
+    main { padding: 14px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── ALERT BANNER ── */
+    #alert-banner { display: none; }
+    .alert-offend {
+      border: 2px solid #F23D4F; border-radius: 10px;
+      padding: 12px 20px; font-size: 15px; font-weight: 700; text-align: center;
+      background: rgba(242,61,79,.1); color: #ff8a80;
+      animation: pulse-border 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse-border {
+      0%,100% { border-color: #F23D4F; box-shadow: 0 0 0 0 rgba(242,61,79,0); }
+      50%      { border-color: rgba(242,61,79,.4); box-shadow: 0 0 10px 3px rgba(242,61,79,.15); }
+    }
+
+    /* ── KPI CARDS ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; }
+    .kpi {
+      border-radius: 10px; padding: 16px 12px; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      background: #161927; border: 1px solid rgba(255,255,255,.07); border-top-width: 3px;
+    }
+    .kpi.c-blue   { border-top-color: #3483FA; }
+    .kpi.c-ok     { border-top-color: #00A650; }
+    .kpi.c-alert  { border-top-color: #F0A500; }
+    .kpi.c-crit   { border-top-color: #E37F00; }
+    .kpi.c-offend { border-top-color: #F23D4F; }
+    .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; color: #9499b5; }
+    .kpi-val   { font-size: 32px; font-weight: 800; line-height: 1; }
+    .kpi.c-blue   .kpi-val { color: #3483FA; }
+    .kpi.c-ok     .kpi-val { color: #00A650; }
+    .kpi.c-alert  .kpi-val { color: #F0A500; }
+    .kpi.c-crit   .kpi-val { color: #E37F00; }
+    .kpi.c-offend .kpi-val { color: #F23D4F; }
+    .kpi-sub { font-size: 10px; color: #9499b5; }
+
+    /* ── SECTION TITLE ── */
+    .sec-title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; color: #9499b5;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .sec-title .cnt {
+      background: #272b42; color: #9499b5;
+      border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600;
+    }
+
+    /* ── TABLE ── */
+    .table-card {
+      border-radius: 10px; overflow: hidden;
+      background: #161927; border: 1px solid rgba(255,255,255,.07);
+    }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      padding: 9px 12px; text-align: center;
+      font-size: 11px; letter-spacing: .4px; font-weight: 700; white-space: nowrap;
+      background: #1f2235; color: #9499b5; border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,.05); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #1f2235; }
+    tbody td { padding: 9px 12px; white-space: nowrap; text-align: center; color: #e8eaf2; }
+    .no-data { text-align: center; padding: 32px; font-size: 13px; color: #9499b5; }
+
+    /* ── ROW STATUS ── */
+    tbody tr.row-ok     { border-left: 3px solid #00A650; }
+    tbody tr.row-alert  { border-left: 3px solid #F0A500; }
+    tbody tr.row-crit   { border-left: 3px solid #E37F00; }
+    tbody tr.row-offend { border-left: 3px solid #F23D4F; background: rgba(242,61,79,.04); }
+
+    /* ── BADGE STATUS ── */
+    .badge-status {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    }
+    .badge-ok     { background: rgba(0,166,80,.12);  color: #27ae60; }
+    .badge-alert  { background: rgba(240,165,0,.12); color: #f0c040; }
+    .badge-crit   { background: rgba(227,127,0,.12); color: #e67e22; }
+    .badge-offend { background: rgba(242,61,79,.12); color: #e74c3c; animation: flash 1.2s ease-in-out infinite; }
+    @keyframes flash { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* ── TIMER CELL ── */
+    .timer-ok     { color: #00A650; font-weight: 700; font-size: 13px; }
+    .timer-alert  { color: #F0A500; font-weight: 700; font-size: 13px; }
+    .timer-crit   { color: #E37F00; font-weight: 700; font-size: 13px; }
+    .timer-offend { color: #F23D4F; font-weight: 800; font-size: 14px; animation: flash 1.2s ease-in-out infinite; }
+
+    /* ── HIST TOGGLE ── */
+    .hist-toggle {
+      width: 100%; border-radius: 10px; padding: 10px 16px; cursor: pointer;
+      font-size: 12px; font-weight: 600; text-align: left; border: 1px solid rgba(255,255,255,.08);
+      display: flex; align-items: center; justify-content: space-between;
+      background: #1f2235; color: #9499b5; transition: background .15s;
+    }
+    .hist-toggle:hover { background: #272b42; }
+    .hist-toggle .arrow { transition: transform .2s; }
+    .hist-toggle.open .arrow { transform: rotate(180deg); }
+    #hist-section { display: none; }
+
+    footer {
+      padding: 10px 20px; text-align: center; font-size: 11px;
+      background: #0d0f18; color: #9499b5; border-top: 1px solid rgba(255,255,255,.06);
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <span style="font-size:20px">🕐</span>
+    <span class="logo-title">YMS <span>Monitor</span></span>
+    <span class="badge-site">SPR5</span>
+  </div>
+  <div class="header-center">
+    <div class="source-pill">
+      <span class="dot"></span>
+      <span>Google Sheets ao vivo</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div>
+      <div id="clock">--:--:--</div>
+      <div id="last-upd">—</div>
+    </div>
+    <div class="refresh-box">
+      <label>🔄</label>
+      <select id="refresh-sel">
+        <option value="0">Manual</option>
+        <option value="10" selected>10 seg</option>
+        <option value="30">30 seg</option>
+        <option value="60">1 min</option>
+        <option value="300">5 min</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <div class="fg">
+    <label>Transportadora:</label>
+    <select id="f-transp"><option value="">Todas</option></select>
+  </div>
+  <button class="btn btn-ghost" id="btn-clear">✕ Limpar</button>
+  <button class="btn btn-ghost" onclick="fetchData()" style="margin-left:auto">🔄 Atualizar agora</button>
+</div>
+
+<!-- CONN BAR -->
+<div id="conn-bar"></div>
+
+<!-- MAIN -->
+<main>
+  <div id="alert-banner"></div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi c-blue">
+      <div class="kpi-label">No Pátio</div>
+      <div class="kpi-val" id="k-patio">—</div>
+      <div class="kpi-sub">carregando agora</div>
+    </div>
+    <div class="kpi c-ok">
+      <div class="kpi-label">🟢 Em dia</div>
+      <div class="kpi-val" id="k-ok">—</div>
+      <div class="kpi-sub">&lt; 20 min</div>
+    </div>
+    <div class="kpi c-alert">
+      <div class="kpi-label">⚠️ Alerta</div>
+      <div class="kpi-val" id="k-alert">—</div>
+      <div class="kpi-sub">20 – 24 min</div>
+    </div>
+    <div class="kpi c-crit">
+      <div class="kpi-label">🔴 Crítico</div>
+      <div class="kpi-val" id="k-crit">—</div>
+      <div class="kpi-sub">25 – 29 min</div>
+    </div>
+    <div class="kpi c-offend">
+      <div class="kpi-label">❌ Ofensor</div>
+      <div class="kpi-val" id="k-offend">—</div>
+      <div class="kpi-sub">≥ 30 min</div>
+    </div>
+  </div>
+
+  <!-- Tabela pátio -->
+  <div class="sec-title">
+    🏁 Veículos Carregando Agora
+    <span class="cnt" id="cnt-patio">0</span>
+  </div>
+  <div class="table-card">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>⏱ Tempo</th>
+            <th>Vaga</th>
+            <th>Motorista</th>
+            <th>Transportadora</th>
+            <th>Entrada</th>
+          </tr>
+        </thead>
+        <tbody id="tb-patio">
+          <tr><td colspan="6" class="no-data">⏳ Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Histórico de saídas -->
+  <button class="hist-toggle" id="hist-btn" onclick="toggleHist()">
+    <span id="hist-label">📋 Histórico de Saídas — veículos que já saíram</span>
+    <span class="arrow">▼</span>
+  </button>
+  <div id="hist-section">
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Motorista</th>
+              <th>Transportadora</th>
+              <th>Vaga</th>
+              <th>Entrada</th>
+              <th>Saída</th>
+              <th>Permanência</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody id="tb-hist">
+            <tr><td colspan="7" class="no-data">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>YMS SPR5 · Programação Diária · Dados via Google Sheets</footer>
+
+<script>
+/* ══════════════════════════════════════════
+   ⚙️  CONFIGURAÇÃO — cole aqui a URL do seu Apps Script
+   Exemplo: https://script.google.com/macros/s/SEU_ID/exec
+══════════════════════════════════════════ */
+const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/mercadolivre.com/s/AKfycbwqNpmQvqz_SOEhcAgNAxXEulOsc8lD_7g2OGJLyUV4wnDOl1nkBZcTxLSdk5P-038D/exec';
+
+/* ══════════════════════════════════════════
+   LIMITES (iguais ao SPR4)
+══════════════════════════════════════════ */
+const LIMIT_ALERT  = 20;
+const LIMIT_CRIT   = 25;
+const LIMIT_OFFEND = 30;
+
+/* ══════════════════════════════════════════
+   ESTADO
+══════════════════════════════════════════ */
+let allData   = [];
+let inPatio   = [];   // sem saída = ainda carregando
+let comSaida  = [];   // com saída = já saíram
+let timerUI   = null;
+let refreshInt= null;
+
+/* ══════════════════════════════════════════
+   RELÓGIO
+══════════════════════════════════════════ */
+(function startClock() {
+  const el = document.getElementById('clock');
+  const tick = () => { el.textContent = new Date().toLocaleTimeString('pt-BR'); };
+  tick(); setInterval(tick, 1000);
+})();
+
+/* ══════════════════════════════════════════
+   PARSE DE DATA
+   - Entrada vem como "HH:MM" (sem data) → assume hoje
+   - Também aceita ISO completo
+══════════════════════════════════════════ */
+function parseCheckin(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s || s === '—' || s === '') return null;
+
+  // Formato HH:MM ou HH:MM:SS (sem data) → assume hoje
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
+    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date(`${today}T${s.length === 5 ? s + ':00' : s}`);
+    return isNaN(d) ? null : d;
+  }
+
+  // ISO completo
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+
+  // BR: dd/mm/yyyy HH:MM
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}:\d{2}(:\d{2})?)?/);
+  if (br) {
+    const d = new Date(`${br[3]}-${br[2]}-${br[1]}T${br[4] || '00:00:00'}`);
+    return isNaN(d) ? null : d;
+  }
+
+  return null;
+}
+
+function fmtTime(val) {
+  const d = parseCheckin(val);
+  return d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function getMinutes(checkin) {
+  const d = parseCheckin(checkin);
+  if (!d) return null;
+  return Math.floor((Date.now() - d.getTime()) / 60000);
+}
+
+function getStatus(min) {
+  if (min === null || min < 0) return 'ok';
+  if (min >= LIMIT_OFFEND) return 'offend';
+  if (min >= LIMIT_CRIT)   return 'crit';
+  if (min >= LIMIT_ALERT)  return 'alert';
+  return 'ok';
+}
+
+const STATUS_LABEL = {
+  ok: '🟢 Em dia', alert: '⚠️ Alerta',
+  crit: '🔴 Crítico', offend: '❌ Ofensor'
+};
+
+/* ══════════════════════════════════════════
+   PARSE DA RESPOSTA DO APPS SCRIPT
+   Espera array de objetos com chaves:
+   vaga, motorista, transportadora, entrada, saida, status
+══════════════════════════════════════════ */
+function parseResponse(raw) {
+  let rows = raw;
+  if (raw && !Array.isArray(raw)) {
+    rows = raw.data || raw.values || raw.rows || raw.result || [];
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  // Suporte a array de arrays (headers na linha 0)
+  if (Array.isArray(rows[0])) {
+    const headers = rows[0].map(h => String(h || '').toLowerCase().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+    return rows.slice(1).map(row => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+      return normalizeRow(obj);
+    }).filter(r => r.motorista && r.motorista.length > 2);
+  }
+
+  // Array de objetos
+  return rows.map(o => {
+    const n = {};
+    for (const [k, v] of Object.entries(o)) {
+      n[String(k).toLowerCase().trim()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')] = v;
+    }
+    return normalizeRow(n);
+  }).filter(r => r.motorista && r.motorista.length > 2);
+}
+
+function normalizeRow(o) {
+  const g = (...keys) => {
+    for (const k of keys) {
+      if (o[k] !== undefined && o[k] !== null && String(o[k]).trim() !== '') return String(o[k]).trim();
+    }
+    return '';
+  };
+  return {
+    vaga:          g('vaga'),
+    motorista:     g('motorista'),
+    transportadora:g('transportadora', 'transp', 'carrier'),
+    entrada:       g('entrada', 'checkin', 'gate_checkin_date', 'entrada_real'),
+    saida:         g('saida', 'checkout', 'gate_checkout_date', 'saida_real'),
+    status:        g('status'),
+  };
+}
+
+/* ══════════════════════════════════════════
+   FETCH VIA JSONP
+══════════════════════════════════════════ */
+function fetchData() {
+  if (!APPS_SCRIPT_URL) {
+    setConnBar('err', '⚙️ URL do Apps Script não configurada. Edite o arquivo HTML e cole a URL na variável APPS_SCRIPT_URL.');
+    return;
+  }
+
+  setConnBar('loading', '⏳ Buscando dados da planilha...');
+
+  const cbName = '_yms_' + Date.now();
+  const script = document.createElement('script');
+
+  const cleanup = () => {
+    delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  };
+
+  const timeout = setTimeout(() => {
+    cleanup();
+    setConnBar('err', '⚠️ Tempo esgotado. Verifique se o Apps Script está publicado corretamente.');
+  }, 15000);
+
+  window[cbName] = function(raw) {
+    clearTimeout(timeout);
+    cleanup();
+    try {
+      allData = parseResponse(raw);
+      populateFilters();
+      applyFilters();
+      hideConnBar();
+      document.getElementById('last-upd').textContent =
+        'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+    } catch(e) {
+      setConnBar('err', '⚠️ Erro ao processar dados. Verifique o formato retornado pelo Apps Script.');
+      console.error('[YMS SPR5]', e);
+    }
+  };
+
+  script.onerror = () => {
+    clearTimeout(timeout);
+    cleanup();
+    setConnBar('err', '⚠️ Erro de conexão. Verifique se o Apps Script está acessível.');
+  };
+
+  script.src = APPS_SCRIPT_URL + '?callback=' + cbName;
+  document.head.appendChild(script);
+}
+
+/* ══════════════════════════════════════════
+   FILTROS
+══════════════════════════════════════════ */
+function populateFilters() {
+  const sel = document.getElementById('f-transp');
+  const cur = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  const vals = [...new Set(allData.map(r => r.transportadora).filter(Boolean))].sort();
+  vals.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+  if (vals.includes(cur)) sel.value = cur;
+}
+
+function applyFilters() {
+  const transp = document.getElementById('f-transp').value;
+  const filtered = allData.filter(r => !transp || r.transportadora === transp);
+
+  const temSaida = r => r.saida && r.saida.trim() !== '' && r.saida !== '—';
+  inPatio  = filtered.filter(r => !temSaida(r) && r.motorista);
+  comSaida = filtered.filter(r =>  temSaida(r) && r.motorista);
+
+  renderPatio();
+  renderHist();
+  renderKPIs();
+  renderAlertBanner();
+  startTimerLoop();
+}
+
+/* ══════════════════════════════════════════
+   RENDER — PÁTIO
+══════════════════════════════════════════ */
+function renderPatio() {
+  const tbody = document.getElementById('tb-patio');
+  document.getElementById('cnt-patio').textContent = inPatio.length;
+
+  const rows = [...inPatio].sort((a, b) =>
+    (getMinutes(b.entrada) ?? 0) - (getMinutes(a.entrada) ?? 0)
+  );
+
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  if (rows.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6; td.className = 'no-data';
+    td.textContent = '✅ Nenhum veículo no pátio para os filtros selecionados.';
+    tr.appendChild(td); tbody.appendChild(tr);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  rows.forEach(r => {
+    const min = getMinutes(r.entrada);
+    const st  = getStatus(min);
+    const tr  = document.createElement('tr');
+    tr.className = 'row-' + st;
+    tr.dataset.entrada = r.entrada;
+
+    const addTd = (val, cls) => {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.textContent = String(val ?? '—');
+      return td;
+    };
+
+    // Badge
+    const tdSt = document.createElement('td');
+    const span = document.createElement('span');
+    span.className = 'badge-status badge-' + st;
+    span.textContent = STATUS_LABEL[st];
+    tdSt.appendChild(span); tr.appendChild(tdSt);
+
+    // Timer ao vivo
+    const tdMin = addTd(min !== null ? min + ' min' : '—', 'timer-' + st);
+    tdMin.dataset.timerCell = 'true';
+    tr.appendChild(tdMin);
+
+    tr.appendChild(addTd(r.vaga));
+    tr.appendChild(addTd(r.motorista));
+    tr.appendChild(addTd(r.transportadora));
+    tr.appendChild(addTd(fmtTime(r.entrada)));
+
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+/* ══════════════════════════════════════════
+   RENDER — HISTÓRICO
+══════════════════════════════════════════ */
+function renderHist() {
+  const tbody = document.getElementById('tb-hist');
+  document.getElementById('hist-label').textContent =
+    `📋 Histórico de Saídas — ${comSaida.length} veículo(s) que já saíram`;
+
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+  if (comSaida.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 7; td.className = 'no-data';
+    td.textContent = 'Nenhum registro de saída no período.';
+    tr.appendChild(td); tbody.appendChild(tr);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  [...comSaida].sort((a, b) =>
+    (parseCheckin(b.saida)?.getTime() ?? 0) - (parseCheckin(a.saida)?.getTime() ?? 0)
+  ).forEach(r => {
+    const entMin = getMinutes(r.entrada);
+    const saidaD = parseCheckin(r.saida);
+    const entD   = parseCheckin(r.entrada);
+    const perm   = (saidaD && entD) ? Math.round((saidaD - entD) / 60000) : (entMin ?? null);
+    const st     = getStatus(perm);
+
+    const tr = document.createElement('tr');
+    tr.className = 'row-' + st;
+
+    const addTd = val => {
+      const td = document.createElement('td');
+      td.textContent = String(val ?? '—');
+      return td;
+    };
+
+    tr.appendChild(addTd(r.motorista));
+    tr.appendChild(addTd(r.transportadora));
+    tr.appendChild(addTd(r.vaga));
+    tr.appendChild(addTd(fmtTime(r.entrada)));
+    tr.appendChild(addTd(fmtTime(r.saida)));
+    tr.appendChild(addTd(perm !== null ? perm + ' min' : '—'));
+
+    const tdSt = document.createElement('td');
+    const span = document.createElement('span');
+    span.className = 'badge-status badge-' + st;
+    span.textContent = STATUS_LABEL[st];
+    tdSt.appendChild(span); tr.appendChild(tdSt);
+
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+/* ══════════════════════════════════════════
+   KPIs
+══════════════════════════════════════════ */
+function renderKPIs() {
+  const mins = inPatio.map(r => getMinutes(r.entrada));
+  document.getElementById('k-patio').textContent  = inPatio.length;
+  document.getElementById('k-ok').textContent     = mins.filter(m => m !== null && m < LIMIT_ALERT).length;
+  document.getElementById('k-alert').textContent  = mins.filter(m => m !== null && m >= LIMIT_ALERT && m < LIMIT_CRIT).length;
+  document.getElementById('k-crit').textContent   = mins.filter(m => m !== null && m >= LIMIT_CRIT && m < LIMIT_OFFEND).length;
+  document.getElementById('k-offend').textContent = mins.filter(m => m !== null && m >= LIMIT_OFFEND).length;
+}
+
+/* ══════════════════════════════════════════
+   ALERT BANNER
+══════════════════════════════════════════ */
+function renderAlertBanner() {
+  const banner = document.getElementById('alert-banner');
+  const n = inPatio.filter(r => { const m = getMinutes(r.entrada); return m !== null && m >= LIMIT_OFFEND; }).length;
+  while (banner.firstChild) banner.removeChild(banner.firstChild);
+  if (n > 0) {
+    banner.style.display = 'block';
+    const div = document.createElement('div');
+    div.className = 'alert-offend';
+    div.textContent = `❌ ${n} veículo(s) OFENSOR(ES) — mais de ${LIMIT_OFFEND} minutos carregando!`;
+    banner.appendChild(div);
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+/* ══════════════════════════════════════════
+   TIMER AO VIVO
+══════════════════════════════════════════ */
+function startTimerLoop() {
+  if (timerUI) clearInterval(timerUI);
+  timerUI = setInterval(() => {
+    document.querySelectorAll('#tb-patio tr[data-entrada]').forEach(tr => {
+      const min = getMinutes(tr.dataset.entrada);
+      const st  = getStatus(min);
+      tr.className = 'row-' + st;
+      const badge = tr.querySelector('.badge-status');
+      if (badge) { badge.className = 'badge-status badge-' + st; badge.textContent = STATUS_LABEL[st]; }
+      const cell = tr.querySelector('[data-timer-cell]');
+      if (cell) { cell.className = 'timer-' + st; cell.textContent = min !== null ? min + ' min' : '—'; }
+    });
+    renderKPIs();
+    renderAlertBanner();
+  }, 15000);
+}
+
+/* ══════════════════════════════════════════
+   UI HELPERS
+══════════════════════════════════════════ */
+function setConnBar(cls, msg) {
+  const b = document.getElementById('conn-bar');
+  b.className = cls; b.textContent = msg;
+}
+function hideConnBar() {
+  const b = document.getElementById('conn-bar');
+  b.className = ''; b.textContent = '';
+}
+function toggleHist() {
+  const btn = document.getElementById('hist-btn');
+  const sec = document.getElementById('hist-section');
+  const isOpen = sec.style.display === 'block';
+  sec.style.display = isOpen ? 'none' : 'block';
+  btn.classList.toggle('open', !isOpen);
+}
+
+/* ══════════════════════════════════════════
+   EVENTOS
+══════════════════════════════════════════ */
+document.getElementById('refresh-sel').addEventListener('change', function() {
+  clearInterval(refreshInt);
+  const secs = parseInt(this.value, 10);
+  if (secs > 0) refreshInt = setInterval(fetchData, secs * 1000);
+});
+document.getElementById('f-transp').addEventListener('change', applyFilters);
+document.getElementById('btn-clear').addEventListener('click', () => {
+  document.getElementById('f-transp').value = '';
+  applyFilters();
+});
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+(function init() {
+  refreshInt = setInterval(fetchData, 10000);
+  fetchData();
+})();
+</script>
+</body>
+</html>
