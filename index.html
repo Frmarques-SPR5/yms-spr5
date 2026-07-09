@@ -172,7 +172,7 @@
     }
     var script = document.createElement('script');
     var separador = WEBAPP_URL.indexOf('?') === -1 ? '?' : '&';
-    script.src = WEBAPP_URL + separador + 'callback=' + CALLBACK_NAME;
+    script.src = WEBAPP_URL + separador + 'callback=' + CALLBACK_NAME + '&_=' + Date.now();
     script.onerror = function () {
       mostrarErro('Não consegui carregar os dados. Confirme se o Web App foi implantado com acesso "Qualquer pessoa" e se a URL em WEBAPP_URL está correta.');
     };
