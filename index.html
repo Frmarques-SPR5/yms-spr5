@@ -77,6 +77,45 @@
     display: none;
   }
   .footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
+
+  /* ===== Visão mobile (cards em vez de tabela) ===== */
+  .mobile-list { display: none; }
+  .truck-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .truck-card.tier-amarelo { border-left-color: var(--amarelo); }
+  .truck-card.tier-laranja { border-left-color: var(--laranja); }
+  .truck-card.tier-vermelho { border-left-color: var(--vermelho); }
+  .truck-card.tier-ok { border-left-color: var(--ok); }
+  .truck-card .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .truck-card .placa { font-size: 18px; font-weight: 700; }
+  .truck-card .tempo-mobile { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
+  .truck-card .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    font-size: 13px;
+  }
+  .truck-card .info-grid .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .truck-card .info-grid div div:last-child { margin-top: 1px; }
+
+  @media (max-width: 720px) {
+    body { padding: 14px; }
+    h1 { font-size: 20px; }
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    table { display: none; }
+    .mobile-list { display: block; }
+  }
 </style>
 </head>
 <body>
@@ -99,7 +138,6 @@
     <tr>
       <th>Placa</th>
       <th>Vaga</th>
-      <th>Motorista</th>
       <th>Tipo de veículo</th>
       <th>Transportadora</th>
       <th>Entrada</th>
@@ -108,16 +146,18 @@
     </tr>
   </thead>
   <tbody id="tableBody">
-    <tr><td colspan="8" class="empty-state">Carregando...</td></tr>
+    <tr><td colspan="7" class="empty-state">Carregando...</td></tr>
   </tbody>
 </table>
+
+<div class="mobile-list" id="mobileList"></div>
 
 <div class="footer" id="footer"></div>
 
 <script>
   // ====== CONFIGURAÇÃO ======
-  // Cole aqui a URL do Web App do Apps Script (Passo 6 do guia), terminando em /exec
-  var WEBAPP_URL = 'https://script.google.com/a/macros/mercadolivre.com/s/AKfycbwmEb6piHWfz-xPg_lsg9kUTRT1VNvKal-pPsw-3ULnghXJ2yHK1J0XChl6Pj1HXl46hA/exec';
+  // Cole aqui a URL do Web App do Apps Script implantado na planilha "YMS - Guarapuava" (conta pessoal), terminando em /exec
+  var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwLHh0bBrkcQjv8mBDZthaq33MP9riVQ5dvZcE_LWIxd0qUY4govgU3_-JOS-FWWuXjJw/exec';
   var REFETCH_MS = 30000;  // busca dados novos a cada 30s
   var RETICK_MS  = 1000;   // recalcula tempo/cor a cada 1s (sem precisar buscar de novo)
   // ===========================
@@ -134,7 +174,7 @@
     var separador = WEBAPP_URL.indexOf('?') === -1 ? '?' : '&';
     script.src = WEBAPP_URL + separador + 'callback=' + CALLBACK_NAME;
     script.onerror = function () {
-      mostrarErro('Não consegui carregar os dados. Confirme se você está logado com uma conta @mercadolibre.com neste navegador, e se o Web App foi implantado (Passo 6 do guia).');
+      mostrarErro('Não consegui carregar os dados. Confirme se o Web App foi implantado com acesso "Qualquer pessoa" e se a URL em WEBAPP_URL está correta.');
     };
     document.body.appendChild(script);
     setTimeout(function () { script.remove(); }, 8000);
@@ -158,7 +198,6 @@
         return {
           placa: item.placa,
           vaga: item.vaga || '',
-          motorista: item.motorista || '',
           tipo: item.tipo || '',
           transportadora: item.transportadora || '',
           entrada: new Date(item.entradaISO)
@@ -207,8 +246,11 @@
     document.getElementById('cardVermelho').textContent = counts.vermelho;
 
     var tbody = document.getElementById('tableBody');
+    var mobileList = document.getElementById('mobileList');
+
     if (enriquecido.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum caminhão no pátio no momento 🎉</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum caminhão no pátio no momento 🎉</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">Nenhum caminhão no pátio no momento 🎉</div>';
       return;
     }
 
@@ -217,7 +259,6 @@
       return '<tr class="row-' + c.status.tier + '">' +
         '<td><strong>' + c.placa + '</strong></td>' +
         '<td>' + c.vaga + '</td>' +
-        '<td>' + c.motorista + '</td>' +
         '<td>' + c.tipo + '</td>' +
         '<td>' + c.transportadora + '</td>' +
         '<td>' + horaEntrada + '</td>' +
@@ -225,6 +266,26 @@
         '<td>' + (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>') +
         '</td>' +
         '</tr>';
+    }).join('');
+
+    mobileList.innerHTML = enriquecido.map(function (c) {
+      var horaEntrada = c.entrada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      var badge = c.status.label
+        ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>'
+        : '<span class="badge badge-ok">no prazo</span>';
+      return '<div class="truck-card tier-' + c.status.tier + '">' +
+        '<div class="top-row">' +
+          '<span class="placa">' + c.placa + '</span>' +
+          '<span class="tempo-mobile">' + fmtTempo(c.minutos) + '</span>' +
+        '</div>' +
+        '<div class="info-grid">' +
+          '<div><div class="label">Vaga</div><div>' + (c.vaga || '—') + '</div></div>' +
+          '<div><div class="label">Entrada</div><div>' + horaEntrada + '</div></div>' +
+          '<div><div class="label">Tipo</div><div>' + (c.tipo || '—') + '</div></div>' +
+          '<div><div class="label">Transportadora</div><div>' + (c.transportadora || '—') + '</div></div>' +
+          '<div><div class="label">Status</div><div>' + badge + '</div></div>' +
+        '</div>' +
+      '</div>';
     }).join('');
 
     document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · atualização automática';
