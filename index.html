@@ -15,6 +15,7 @@
     --amarelo: #f2c94c;
     --laranja: #ff9900;
     --vermelho: #e5484d;
+    --azul: #2563eb;
   }
   * { box-sizing: border-box; }
   body {
@@ -78,6 +79,20 @@
   }
   .footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
 
+  /* ===== Abas (No pátio / Histórico) ===== */
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--card-bg); color: #fff; border-color: var(--azul); }
+
   /* ===== Filtro por transportadora ===== */
   .filtros {
     display: flex;
@@ -102,8 +117,23 @@
     -webkit-tap-highlight-color: transparent;
   }
   .chip .chip-count { color: var(--muted); font-weight: 500; margin-left: 4px; }
-  .chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .chip.active { background: var(--azul); border-color: var(--azul); color: #fff; }
   .chip.active .chip-count { color: rgba(255,255,255,0.75); }
+
+  /* ===== Botão de confirmação de monitoramento ===== */
+  .btn-confirmar {
+    background: var(--azul);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-confirmar:disabled { opacity: 0.6; cursor: default; }
+  .badge-confirmado { background: rgba(22,163,74,0.2); color: #4ade80; font-size: 12px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
 
   /* ===== Visão mobile (cards em vez de tabela) ===== */
   .mobile-list { display: none; }
@@ -135,6 +165,7 @@
   }
   .truck-card .info-grid .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; }
   .truck-card .info-grid div div:last-child { margin-top: 1px; }
+  .truck-card .bottom-row { margin-top: 10px; display: flex; justify-content: flex-end; }
 
   @media (max-width: 720px) {
     body { padding: 14px; }
@@ -143,6 +174,7 @@
     table { display: none; }
     .mobile-list { display: block; }
     .chip { padding: 10px 16px; font-size: 14px; }
+    .tab-btn { padding: 10px 16px; font-size: 14px; flex: 1; text-align: center; }
   }
 </style>
 </head>
@@ -153,9 +185,14 @@
 
 <div class="error-banner" id="errorBanner"></div>
 
+<div class="tabs" id="tabs">
+  <button class="tab-btn active" data-modo="patio">No pátio</button>
+  <button class="tab-btn" data-modo="historico">Histórico de hoje</button>
+</div>
+
 <div class="filtros" id="filtros"></div>
 
-<div class="cards">
+<div class="cards" id="cardsPatio">
   <div class="card total"><div class="num" id="cardTotal">–</div><div class="label">No pátio</div></div>
   <div class="card ok"><div class="num" id="cardOk">–</div><div class="label">Normal (&lt;15min)</div></div>
   <div class="card amarelo"><div class="num" id="cardAmarelo">–</div><div class="label">⚠️ 15–20min</div></div>
@@ -163,7 +200,7 @@
   <div class="card vermelho"><div class="num" id="cardVermelho">–</div><div class="label">Possível ofensora⚠️ 25min+</div></div>
 </div>
 
-<table>
+<table id="tabelaPatio">
   <thead>
     <tr>
       <th>Placa</th>
@@ -173,9 +210,27 @@
       <th>Entrada</th>
       <th>Tempo no pátio</th>
       <th>Status</th>
+      <th>Monitoramento</th>
     </tr>
   </thead>
   <tbody id="tableBody">
+    <tr><td colspan="8" class="empty-state">Carregando...</td></tr>
+  </tbody>
+</table>
+
+<table id="tabelaHistorico" style="display:none;">
+  <thead>
+    <tr>
+      <th>Placa</th>
+      <th>Vaga</th>
+      <th>Tipo de veículo</th>
+      <th>Transportadora</th>
+      <th>Entrada</th>
+      <th>Saída</th>
+      <th>Tempo total</th>
+    </tr>
+  </thead>
+  <tbody id="tableBodyHistorico">
     <tr><td colspan="7" class="empty-state">Carregando...</td></tr>
   </tbody>
 </table>
@@ -186,30 +241,45 @@
 
 <script>
   // ====== CONFIGURAÇÃO ======
-  // Cole aqui a URL do Web App do Apps Script implantado na planilha "YMS - Guarapuava" (conta pessoal), terminando em /exec
   var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwLHh0bBrkcQjv8mBDZthaq33MP9riVQ5dvZcE_LWIxd0qUY4govgU3_-JOS-FWWuXjJw/exec';
   var REFETCH_MS = 30000;  // busca dados novos a cada 30s
   var RETICK_MS  = 1000;   // recalcula tempo/cor a cada 1s (sem precisar buscar de novo)
   // ===========================
 
-  var caminhoes = []; // cache da última leitura
-  var CALLBACK_NAME = 'onDadosYms';
+  var caminhoes = [];      // cache do "no pátio"
+  var historico = [];      // cache do "histórico de hoje"
+  var historicoCarregado = false;
+  var modoAtual = 'patio'; // 'patio' | 'historico'
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
   var filtroAtual = localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
 
-  function carregarDados() {
+  // ---------- Comunicação com o Web App (JSONP, sem CORS) ----------
+  function chamarWebApp(params, onResult, onErro) {
     if (!WEBAPP_URL || WEBAPP_URL.indexOf('COLE_AQUI') !== -1) {
-      mostrarErro('Configure a variável WEBAPP_URL no topo do index.html com a URL do Web App (Passo 6 do guia).');
+      onErro && onErro('Configure a variável WEBAPP_URL no topo do index.html.');
       return;
     }
+    var cbName = 'ymsCb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     var script = document.createElement('script');
-    var separador = WEBAPP_URL.indexOf('?') === -1 ? '?' : '&';
-    script.src = WEBAPP_URL + separador + 'callback=' + CALLBACK_NAME + '&_=' + Date.now();
+
+    window[cbName] = function (resp) {
+      onResult(resp);
+      delete window[cbName];
+      script.remove();
+    };
+
+    var qs = Object.keys(params).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+
+    script.src = WEBAPP_URL + '?' + qs + (qs ? '&' : '') + 'callback=' + cbName + '&_=' + Date.now();
     script.onerror = function () {
-      mostrarErro('Não consegui carregar os dados. Confirme se o Web App foi implantado com acesso "Qualquer pessoa" e se a URL em WEBAPP_URL está correta.');
+      onErro && onErro('Não consegui carregar os dados. Confirme se o Web App foi implantado com acesso "Qualquer pessoa" e se a URL em WEBAPP_URL está correta.');
+      delete window[cbName];
+      script.remove();
     };
     document.body.appendChild(script);
-    setTimeout(function () { script.remove(); }, 8000);
+    setTimeout(function () { if (window[cbName]) { script.remove(); } }, 10000);
   }
 
   function mostrarErro(msg) {
@@ -222,27 +292,71 @@
     document.getElementById('errorBanner').style.display = 'none';
   }
 
-  // Callback chamado pelo Web App (via JSONP) quando os dados chegam
-  window[CALLBACK_NAME] = function (resp) {
-    esconderErro();
-    try {
-      var lista = (resp.caminhoes || []).map(function (item) {
-        return {
-          placa: item.placa,
-          vaga: item.vaga || '',
-          tipo: item.tipo || '',
-          transportadora: item.transportadora || '',
-          entrada: new Date(item.entradaISO)
-        };
-      });
-      caminhoes = lista;
-      document.getElementById('subtitle').textContent =
-        'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
-      render();
-    } catch (err) {
-      mostrarErro('Erro lendo os dados: ' + err.message);
-    }
-  };
+  function carregarPatio() {
+    chamarWebApp({}, function (resp) {
+      esconderErro();
+      try {
+        caminhoes = (resp.caminhoes || []).map(function (item) {
+          return {
+            placa: item.placa,
+            vaga: item.vaga || '',
+            tipo: item.tipo || '',
+            transportadora: item.transportadora || '',
+            entrada: new Date(item.entradaISO),
+            confirmadoEm: item.confirmadoEmISO ? new Date(item.confirmadoEmISO) : null
+          };
+        });
+        document.getElementById('subtitle').textContent =
+          'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
+        render();
+      } catch (err) {
+        mostrarErro('Erro lendo os dados: ' + err.message);
+      }
+    }, mostrarErro);
+  }
+
+  function carregarHistorico() {
+    chamarWebApp({ action: 'historico' }, function (resp) {
+      esconderErro();
+      try {
+        historico = (resp.historico || []).map(function (item) {
+          return {
+            placa: item.placa,
+            vaga: item.vaga || '',
+            tipo: item.tipo || '',
+            transportadora: item.transportadora || '',
+            entrada: new Date(item.entradaISO),
+            saida: item.saidaISO ? new Date(item.saidaISO) : null,
+            tempoMinutos: item.tempoMinutos
+          };
+        });
+        historicoCarregado = true;
+        render();
+      } catch (err) {
+        mostrarErro('Erro lendo o histórico: ' + err.message);
+      }
+    }, mostrarErro);
+  }
+
+  function confirmarMonitoramento(placa, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Confirmando...';
+    chamarWebApp({ action: 'confirmar', placa: placa }, function (resp) {
+      if (resp.ok) {
+        var item = caminhoes.find(function (c) { return c.placa === placa; });
+        if (item) item.confirmadoEm = new Date(resp.confirmadoEmISO);
+        render();
+      } else {
+        mostrarErro('Não consegui confirmar: ' + (resp.erro || 'erro desconhecido'));
+        btn.disabled = false;
+        btn.textContent = '👁️ Confirmar monitoramento';
+      }
+    }, function (msg) {
+      mostrarErro(msg);
+      btn.disabled = false;
+      btn.textContent = '👁️ Confirmar monitoramento';
+    });
+  }
 
   function classificar(minutos) {
     if (minutos >= 25) return { tier: 'vermelho', label: 'Possível ofensora⚠️' };
@@ -252,12 +366,17 @@
   }
 
   function fmtTempo(minutosTotais) {
+    if (minutosTotais == null || isNaN(minutosTotais)) return '—';
     var totalSeg = Math.floor(minutosTotais * 60);
     var h = Math.floor(totalSeg / 3600);
     var m = Math.floor((totalSeg % 3600) / 60);
     var s = totalSeg % 60;
     function pad(n) { return String(n).padStart(2, '0'); }
     return (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(s);
+  }
+
+  function fmtHora(d) {
+    return d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
   }
 
   function normalizarTransportadora(t) {
@@ -272,7 +391,6 @@
     });
     var transportadoras = Object.keys(contagemPorTransportadora).sort();
 
-    // se a transportadora salva no localStorage não existe mais nos dados atuais, volta pra "Todas"
     if (filtroAtual !== 'TODAS' && transportadoras.indexOf(filtroAtual) === -1) {
       filtroAtual = 'TODAS';
       localStorage.setItem(FILTRO_STORAGE_KEY, filtroAtual);
@@ -299,7 +417,27 @@
     });
   }
 
-  function render() {
+  function trocarModo(modo) {
+    modoAtual = modo;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-modo') === modo);
+    });
+    document.getElementById('cardsPatio').style.display = modo === 'patio' ? 'grid' : 'none';
+    document.getElementById('tabelaPatio').style.display = modo === 'patio' ? '' : 'none';
+    document.getElementById('tabelaHistorico').style.display = modo === 'historico' ? '' : 'none';
+
+    if (modo === 'historico' && !historicoCarregado) {
+      carregarHistorico();
+    }
+    render();
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var btn = e.target.closest('.tab-btn');
+    if (btn) trocarModo(btn.getAttribute('data-modo'));
+  });
+
+  function renderPatio() {
     var agora = new Date();
     var todosEnriquecidos = caminhoes.map(function (c) {
       var minutos = (agora.getTime() - c.entrada.getTime()) / 60000;
@@ -330,27 +468,32 @@
       var msgVazio = filtroAtual === 'TODAS'
         ? 'Nenhum caminhão no pátio no momento 🎉'
         : 'Nenhum caminhão de "' + filtroAtual + '" no pátio no momento 🎉';
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msgVazio + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">' + msgVazio + '</td></tr>';
       mobileList.innerHTML = '<div class="empty-state">' + msgVazio + '</div>';
       return;
     }
 
+    function botaoConfirmacaoHtml(c) {
+      if (c.confirmadoEm) {
+        return '<span class="badge-confirmado">✅ Confirmado às ' + fmtHora(c.confirmadoEm) + '</span>';
+      }
+      return '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
+    }
+
     tbody.innerHTML = enriquecido.map(function (c) {
-      var horaEntrada = c.entrada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       return '<tr class="row-' + c.status.tier + '">' +
         '<td><strong>' + c.placa + '</strong></td>' +
         '<td>' + c.vaga + '</td>' +
         '<td>' + c.tipo + '</td>' +
         '<td>' + c.transportadora + '</td>' +
-        '<td>' + horaEntrada + '</td>' +
+        '<td>' + fmtHora(c.entrada) + '</td>' +
         '<td class="tempo">' + fmtTempo(c.minutos) + '</td>' +
-        '<td>' + (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>') +
-        '</td>' +
+        '<td>' + (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>') + '</td>' +
+        '<td>' + botaoConfirmacaoHtml(c) + '</td>' +
         '</tr>';
     }).join('');
 
     mobileList.innerHTML = enriquecido.map(function (c) {
-      var horaEntrada = c.entrada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       var badge = c.status.label
         ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>'
         : '<span class="badge badge-ok">no prazo</span>';
@@ -361,20 +504,76 @@
         '</div>' +
         '<div class="info-grid">' +
           '<div><div class="label">Vaga</div><div>' + (c.vaga || '—') + '</div></div>' +
-          '<div><div class="label">Entrada</div><div>' + horaEntrada + '</div></div>' +
+          '<div><div class="label">Entrada</div><div>' + fmtHora(c.entrada) + '</div></div>' +
           '<div><div class="label">Tipo</div><div>' + (c.tipo || '—') + '</div></div>' +
           '<div><div class="label">Transportadora</div><div>' + (c.transportadora || '—') + '</div></div>' +
           '<div><div class="label">Status</div><div>' + badge + '</div></div>' +
         '</div>' +
+        '<div class="bottom-row">' + botaoConfirmacaoHtml(c) + '</div>' +
       '</div>';
     }).join('');
+
+    Array.prototype.forEach.call(document.querySelectorAll('.btn-confirmar'), function (btn) {
+      btn.addEventListener('click', function () {
+        confirmarMonitoramento(btn.getAttribute('data-placa'), btn);
+      });
+    });
 
     document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · atualização automática';
   }
 
-  carregarDados();
-  setInterval(carregarDados, REFETCH_MS);
-  setInterval(render, RETICK_MS);
+  function renderHistorico() {
+    var enriquecido = historico.map(function (h) {
+      return Object.assign({}, h, { transportadoraNormalizada: normalizarTransportadora(h.transportadora) });
+    });
+
+    renderFiltros(enriquecido);
+
+    var filtrado = filtroAtual === 'TODAS'
+      ? enriquecido
+      : enriquecido.filter(function (h) { return h.transportadoraNormalizada === filtroAtual; });
+
+    var tbodyHist = document.getElementById('tableBodyHistorico');
+
+    if (!historicoCarregado) {
+      tbodyHist.innerHTML = '<tr><td colspan="7" class="empty-state">Carregando histórico...</td></tr>';
+      return;
+    }
+
+    if (filtrado.length === 0) {
+      tbodyHist.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
+      return;
+    }
+
+    tbodyHist.innerHTML = filtrado.map(function (h) {
+      return '<tr>' +
+        '<td><strong>' + h.placa + '</strong></td>' +
+        '<td>' + h.vaga + '</td>' +
+        '<td>' + h.tipo + '</td>' +
+        '<td>' + h.transportadora + '</td>' +
+        '<td>' + fmtHora(h.entrada) + '</td>' +
+        '<td>' + fmtHora(h.saida) + '</td>' +
+        '<td class="tempo">' + fmtTempo(h.tempoMinutos) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · histórico de hoje';
+  }
+
+  function render() {
+    if (modoAtual === 'patio') {
+      renderPatio();
+    } else {
+      renderHistorico();
+    }
+  }
+
+  carregarPatio();
+  setInterval(function () {
+    carregarPatio();
+    if (modoAtual === 'historico') carregarHistorico();
+  }, REFETCH_MS);
+  setInterval(function () { if (modoAtual === 'patio') render(); }, RETICK_MS);
 </script>
 
 </body>
