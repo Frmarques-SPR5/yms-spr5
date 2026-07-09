@@ -55,6 +55,7 @@
   tr.row-amarelo { background: rgba(242, 201, 76, 0.18); }
   tr.row-laranja { background: rgba(255, 153, 0, 0.20); }
   tr.row-vermelho { background: rgba(229, 72, 77, 0.25); }
+  tr.row-compacta td.col-secundaria { opacity: 0.4; }
   .badge {
     display: inline-block;
     padding: 3px 8px;
@@ -120,7 +121,7 @@
   .chip.active { background: var(--azul); border-color: var(--azul); color: #fff; }
   .chip.active .chip-count { color: rgba(255,255,255,0.75); }
 
-  /* ===== Botão de confirmação de monitoramento ===== */
+  /* ===== Botão / selo de monitoramento ===== */
   .btn-confirmar {
     background: var(--azul);
     color: #fff;
@@ -133,7 +134,42 @@
     white-space: nowrap;
   }
   .btn-confirmar:disabled { opacity: 0.6; cursor: default; }
-  .badge-confirmado { background: rgba(22,163,74,0.2); color: #4ade80; font-size: 12px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .selo-monitorado {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(22,163,74,0.18);
+    color: #4ade80;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .selo-monitorado .ponto { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
+  .proxima-checagem { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ===== Histórico: comentário ===== */
+  .comentario-wrap { display: flex; gap: 6px; align-items: center; }
+  .comentario-input {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    width: 160px;
+  }
+  .btn-salvar-comentario {
+    background: var(--azul);
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-salvar-comentario.salvo { background: var(--ok); }
 
   /* ===== Visão mobile (cards em vez de tabela) ===== */
   .mobile-list { display: none; }
@@ -149,13 +185,16 @@
   .truck-card.tier-laranja { border-left-color: var(--laranja); }
   .truck-card.tier-vermelho { border-left-color: var(--vermelho); }
   .truck-card.tier-ok { border-left-color: var(--ok); }
+  .truck-card.compacto { padding: 8px 12px; border-left-color: var(--ok); }
   .truck-card .top-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
   }
+  .truck-card.compacto .top-row { margin-bottom: 0; }
   .truck-card .placa { font-size: 18px; font-weight: 700; }
+  .truck-card.compacto .placa { font-size: 15px; }
   .truck-card .tempo-mobile { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
   .truck-card .info-grid {
     display: grid;
@@ -165,7 +204,8 @@
   }
   .truck-card .info-grid .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; }
   .truck-card .info-grid div div:last-child { margin-top: 1px; }
-  .truck-card .bottom-row { margin-top: 10px; display: flex; justify-content: flex-end; }
+  .truck-card .bottom-row { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .truck-card.compacto .compact-line { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
   @media (max-width: 720px) {
     body { padding: 14px; }
@@ -205,16 +245,15 @@
     <tr>
       <th>Placa</th>
       <th>Vaga</th>
-      <th>Tipo de veículo</th>
-      <th>Transportadora</th>
+      <th class="col-secundaria">Tipo de veículo</th>
+      <th class="col-secundaria">Transportadora</th>
       <th>Entrada</th>
-      <th>Tempo no pátio</th>
-      <th>Status</th>
+      <th class="col-secundaria">Tempo no pátio</th>
       <th>Monitoramento</th>
     </tr>
   </thead>
   <tbody id="tableBody">
-    <tr><td colspan="8" class="empty-state">Carregando...</td></tr>
+    <tr><td colspan="7" class="empty-state">Carregando...</td></tr>
   </tbody>
 </table>
 
@@ -228,10 +267,11 @@
       <th>Entrada</th>
       <th>Saída</th>
       <th>Tempo total</th>
+      <th>Comentário (motivo do atraso)</th>
     </tr>
   </thead>
   <tbody id="tableBodyHistorico">
-    <tr><td colspan="7" class="empty-state">Carregando...</td></tr>
+    <tr><td colspan="8" class="empty-state">Carregando...</td></tr>
   </tbody>
 </table>
 
@@ -243,13 +283,15 @@
   // ====== CONFIGURAÇÃO ======
   var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwLHh0bBrkcQjv8mBDZthaq33MP9riVQ5dvZcE_LWIxd0qUY4govgU3_-JOS-FWWuXjJw/exec';
   var REFETCH_MS = 30000;  // busca dados novos a cada 30s
-  var RETICK_MS  = 1000;   // recalcula tempo/cor a cada 1s (sem precisar buscar de novo)
+  var RETICK_MS  = 1000;   // recalcula tempo/cor/estado compacto a cada 1s
+  var INTERVALO_1A_CONFIRMACAO_MIN = 15; // depois da 1ª confirmação, pede de novo em 15min
+  var INTERVALO_PROX_CONFIRMACOES_MIN = 5; // da 2ª em diante, pede a cada 5min
   // ===========================
 
-  var caminhoes = [];      // cache do "no pátio"
-  var historico = [];      // cache do "histórico de hoje"
+  var caminhoes = [];
+  var historico = [];
   var historicoCarregado = false;
-  var modoAtual = 'patio'; // 'patio' | 'historico'
+  var modoAtual = 'patio';
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
   var filtroAtual = localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
 
@@ -303,7 +345,8 @@
             tipo: item.tipo || '',
             transportadora: item.transportadora || '',
             entrada: new Date(item.entradaISO),
-            confirmadoEm: item.confirmadoEmISO ? new Date(item.confirmadoEmISO) : null
+            confirmadoEm: item.confirmadoEmISO ? new Date(item.confirmadoEmISO) : null,
+            confirmacaoCount: item.confirmacaoCount || 0
           };
         });
         document.getElementById('subtitle').textContent =
@@ -327,7 +370,9 @@
             transportadora: item.transportadora || '',
             entrada: new Date(item.entradaISO),
             saida: item.saidaISO ? new Date(item.saidaISO) : null,
-            tempoMinutos: item.tempoMinutos
+            tempoMinutos: item.tempoMinutos,
+            registradoEmISO: item.registradoEmISO,
+            comentario: item.comentario || ''
           };
         });
         historicoCarregado = true;
@@ -344,7 +389,10 @@
     chamarWebApp({ action: 'confirmar', placa: placa }, function (resp) {
       if (resp.ok) {
         var item = caminhoes.find(function (c) { return c.placa === placa; });
-        if (item) item.confirmadoEm = new Date(resp.confirmadoEmISO);
+        if (item) {
+          item.confirmadoEm = new Date(resp.confirmadoEmISO);
+          item.confirmacaoCount = resp.confirmacaoCount;
+        }
         render();
       } else {
         mostrarErro('Não consegui confirmar: ' + (resp.erro || 'erro desconhecido'));
@@ -355,6 +403,28 @@
       mostrarErro(msg);
       btn.disabled = false;
       btn.textContent = '👁️ Confirmar monitoramento';
+    });
+  }
+
+  function salvarComentario(placa, registradoEmISO, texto, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    chamarWebApp({ action: 'comentario', placa: placa, registradoEm: registradoEmISO, texto: texto }, function (resp) {
+      btn.disabled = false;
+      if (resp.ok) {
+        btn.textContent = 'Salvo ✓';
+        btn.classList.add('salvo');
+        var item = historico.find(function (h) { return h.placa === placa && h.registradoEmISO === registradoEmISO; });
+        if (item) item.comentario = texto;
+        setTimeout(function () { btn.textContent = 'Salvar'; btn.classList.remove('salvo'); }, 2000);
+      } else {
+        btn.textContent = 'Salvar';
+        mostrarErro('Não consegui salvar o comentário: ' + (resp.erro || 'erro desconhecido'));
+      }
+    }, function (msg) {
+      btn.disabled = false;
+      btn.textContent = 'Salvar';
+      mostrarErro(msg);
     });
   }
 
@@ -437,12 +507,29 @@
     if (btn) trocarModo(btn.getAttribute('data-modo'));
   });
 
+  // Calcula se o caminhão está em estado "compacto" (monitorado, dentro da janela
+  // de confirmação) ou precisa reaparecer pedindo nova confirmação.
+  function calcularEstadoMonitoramento(c, agora) {
+    var intervaloExigido = (c.confirmacaoCount >= 2) ? INTERVALO_PROX_CONFIRMACOES_MIN : INTERVALO_1A_CONFIRMACAO_MIN;
+    var minutosDesdeConfirmacao = c.confirmadoEm ? (agora.getTime() - c.confirmadoEm.getTime()) / 60000 : null;
+    var precisaReconfirmar = !c.confirmadoEm || minutosDesdeConfirmacao >= intervaloExigido;
+    var minutosAteProximaChecagem = (!precisaReconfirmar) ? Math.max(0, intervaloExigido - minutosDesdeConfirmacao) : 0;
+    return { compacto: !precisaReconfirmar, minutosAteProximaChecagem: minutosAteProximaChecagem };
+  }
+
   function renderPatio() {
     var agora = new Date();
     var todosEnriquecidos = caminhoes.map(function (c) {
       var minutos = (agora.getTime() - c.entrada.getTime()) / 60000;
       var status = classificar(minutos);
-      return Object.assign({}, c, { minutos: minutos, status: status, transportadoraNormalizada: normalizarTransportadora(c.transportadora) });
+      var estado = calcularEstadoMonitoramento(c, agora);
+      return Object.assign({}, c, {
+        minutos: minutos,
+        status: status,
+        transportadoraNormalizada: normalizarTransportadora(c.transportadora),
+        compacto: estado.compacto,
+        minutosAteProximaChecagem: estado.minutosAteProximaChecagem
+      });
     });
 
     renderFiltros(todosEnriquecidos);
@@ -468,32 +555,43 @@
       var msgVazio = filtroAtual === 'TODAS'
         ? 'Nenhum caminhão no pátio no momento 🎉'
         : 'Nenhum caminhão de "' + filtroAtual + '" no pátio no momento 🎉';
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">' + msgVazio + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msgVazio + '</td></tr>';
       mobileList.innerHTML = '<div class="empty-state">' + msgVazio + '</div>';
       return;
     }
 
-    function botaoConfirmacaoHtml(c) {
-      if (c.confirmadoEm) {
-        return '<span class="badge-confirmado">✅ Confirmado às ' + fmtHora(c.confirmadoEm) + '</span>';
+    function monitoramentoHtml(c) {
+      if (c.compacto) {
+        return '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
+          '<div class="proxima-checagem">próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>';
       }
       return '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
     }
 
     tbody.innerHTML = enriquecido.map(function (c) {
-      return '<tr class="row-' + c.status.tier + '">' +
+      var trClass = c.compacto ? 'row-compacta' : 'row-' + c.status.tier;
+      var statusColSecundaria = c.compacto ? '' : (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>');
+      return '<tr class="' + trClass + '">' +
         '<td><strong>' + c.placa + '</strong></td>' +
         '<td>' + c.vaga + '</td>' +
-        '<td>' + c.tipo + '</td>' +
-        '<td>' + c.transportadora + '</td>' +
+        '<td class="col-secundaria">' + c.tipo + '</td>' +
+        '<td class="col-secundaria">' + c.transportadora + '</td>' +
         '<td>' + fmtHora(c.entrada) + '</td>' +
-        '<td class="tempo">' + fmtTempo(c.minutos) + '</td>' +
-        '<td>' + (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>') + '</td>' +
-        '<td>' + botaoConfirmacaoHtml(c) + '</td>' +
+        '<td class="tempo col-secundaria">' + fmtTempo(c.minutos) + (statusColSecundaria ? ' ' + statusColSecundaria : '') + '</td>' +
+        '<td>' + monitoramentoHtml(c) + '</td>' +
         '</tr>';
     }).join('');
 
     mobileList.innerHTML = enriquecido.map(function (c) {
+      if (c.compacto) {
+        return '<div class="truck-card compacto">' +
+          '<div class="top-row">' +
+            '<span class="placa">' + c.placa + ' · Vaga ' + (c.vaga || '—') + '</span>' +
+            '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
+          '</div>' +
+          '<div class="compact-line">Carregando desde ' + fmtHora(c.entrada) + ' · próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>' +
+        '</div>';
+      }
       var badge = c.status.label
         ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>'
         : '<span class="badge badge-ok">no prazo</span>';
@@ -509,7 +607,7 @@
           '<div><div class="label">Transportadora</div><div>' + (c.transportadora || '—') + '</div></div>' +
           '<div><div class="label">Status</div><div>' + badge + '</div></div>' +
         '</div>' +
-        '<div class="bottom-row">' + botaoConfirmacaoHtml(c) + '</div>' +
+        '<div class="bottom-row">' + monitoramentoHtml(c) + '</div>' +
       '</div>';
     }).join('');
 
@@ -536,16 +634,17 @@
     var tbodyHist = document.getElementById('tableBodyHistorico');
 
     if (!historicoCarregado) {
-      tbodyHist.innerHTML = '<tr><td colspan="7" class="empty-state">Carregando histórico...</td></tr>';
+      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Carregando histórico...</td></tr>';
       return;
     }
 
     if (filtrado.length === 0) {
-      tbodyHist.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
+      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
       return;
     }
 
-    tbodyHist.innerHTML = filtrado.map(function (h) {
+    tbodyHist.innerHTML = filtrado.map(function (h, idx) {
+      var inputId = 'coment_' + idx;
       return '<tr>' +
         '<td><strong>' + h.placa + '</strong></td>' +
         '<td>' + h.vaga + '</td>' +
@@ -554,8 +653,19 @@
         '<td>' + fmtHora(h.entrada) + '</td>' +
         '<td>' + fmtHora(h.saida) + '</td>' +
         '<td class="tempo">' + fmtTempo(h.tempoMinutos) + '</td>' +
+        '<td><div class="comentario-wrap">' +
+          '<input class="comentario-input" id="' + inputId + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso...">' +
+          '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputId + '">Salvar</button>' +
+        '</div></td>' +
         '</tr>';
     }).join('');
+
+    Array.prototype.forEach.call(tbodyHist.querySelectorAll('.btn-salvar-comentario'), function (btn) {
+      btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.getAttribute('data-input'));
+        salvarComentario(btn.getAttribute('data-placa'), btn.getAttribute('data-registrado'), input.value, btn);
+      });
+    });
 
     document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · histórico de hoje';
   }
