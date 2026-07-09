@@ -116,28 +116,28 @@
 
 <script>
   // ====== CONFIGURAÇÃO ======
-  var SHEET_ID = '1C3ZyPUIq8RpRUFVm4TreidFozUxa7cox8rdu5sTyzCg';
-  var SHEET_NAME = 'Programação diária';
-  var REFETCH_MS = 30000;  // busca dados novos da planilha a cada 30s
+  // Cole aqui a URL do Web App do Apps Script (Passo 6 do guia), terminando em /exec
+  var WEBAPP_URL = 'COLE_AQUI_A_URL_DO_WEB_APP/exec';
+  var REFETCH_MS = 30000;  // busca dados novos a cada 30s
   var RETICK_MS  = 1000;   // recalcula tempo/cor a cada 1s (sem precisar buscar de novo)
   // ===========================
 
   var caminhoes = []; // cache da última leitura
-
-  function buildUrl() {
-    var base = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq';
-    var params = '?tqx=responseHandler:onGvizData&sheet=' + encodeURIComponent(SHEET_NAME);
-    return base + params;
-  }
+  var CALLBACK_NAME = 'onDadosYms';
 
   function carregarDados() {
+    if (!WEBAPP_URL || WEBAPP_URL.indexOf('COLE_AQUI') !== -1) {
+      mostrarErro('Configure a variável WEBAPP_URL no topo do index.html com a URL do Web App (Passo 6 do guia).');
+      return;
+    }
     var script = document.createElement('script');
-    script.src = buildUrl();
+    var separador = WEBAPP_URL.indexOf('?') === -1 ? '?' : '&';
+    script.src = WEBAPP_URL + separador + 'callback=' + CALLBACK_NAME;
     script.onerror = function () {
-      mostrarErro('Não consegui carregar a planilha. Confirme se o compartilhamento está como "Qualquer pessoa com o link pode visualizar".');
+      mostrarErro('Não consegui carregar os dados. Confirme se você está logado com uma conta @mercadolibre.com neste navegador, e se o Web App foi implantado (Passo 6 do guia).');
     };
     document.body.appendChild(script);
-    setTimeout(function () { script.remove(); }, 5000);
+    setTimeout(function () { script.remove(); }, 8000);
   }
 
   function mostrarErro(msg) {
@@ -150,47 +150,26 @@
     document.getElementById('errorBanner').style.display = 'none';
   }
 
-  function gvizDateToJs(v) {
-    // v vem como string tipo "Date(2026,6,9,8,43,0)"
-    if (typeof v !== 'string') return null;
-    var m = /Date\((\d+),(\d+),(\d+)(?:,(\d+))?(?:,(\d+))?(?:,(\d+))?\)/.exec(v);
-    if (!m) return null;
-    return new Date(+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
-  }
-
-  // Callback chamado pelo Google (via JSONP) quando os dados chegam
-  window.onGvizData = function (resp) {
+  // Callback chamado pelo Web App (via JSONP) quando os dados chegam
+  window[CALLBACK_NAME] = function (resp) {
     esconderErro();
     try {
-      var rows = resp.table.rows;
-      var lista = [];
-      for (var i = 0; i < rows.length; i++) {
-        var c = rows[i].c;
-        if (!c) continue;
-        var val = function (idx) { return c[idx] ? c[idx].v : null; };
-        var placa = val(1);
-        var entradaRaw = val(6);
-        var saidaRaw = val(7);
-        if (!placa) continue;
-        var entrada = gvizDateToJs(entradaRaw);
-        if (!entrada) continue;      // sem entrada = não está no pátio
-        if (saidaRaw) continue;      // já tem saída = não está mais no pátio
-
-        lista.push({
-          placa: placa,
-          vaga: val(2) || '',
-          motorista: val(3) || '',
-          tipo: val(4) || '',
-          transportadora: val(5) || '',
-          entrada: entrada
-        });
-      }
+      var lista = (resp.caminhoes || []).map(function (item) {
+        return {
+          placa: item.placa,
+          vaga: item.vaga || '',
+          motorista: item.motorista || '',
+          tipo: item.tipo || '',
+          transportadora: item.transportadora || '',
+          entrada: new Date(item.entradaISO)
+        };
+      });
       caminhoes = lista;
       document.getElementById('subtitle').textContent =
         'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
       render();
     } catch (err) {
-      mostrarErro('Erro lendo os dados da planilha: ' + err.message);
+      mostrarErro('Erro lendo os dados: ' + err.message);
     }
   };
 
