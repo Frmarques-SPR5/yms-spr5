@@ -78,6 +78,33 @@
   }
   .footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
 
+  /* ===== Filtro por transportadora ===== */
+  .filtros {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 18px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .filtros::-webkit-scrollbar { height: 4px; }
+  .chip {
+    flex: 0 0 auto;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chip .chip-count { color: var(--muted); font-weight: 500; margin-left: 4px; }
+  .chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .chip.active .chip-count { color: rgba(255,255,255,0.75); }
+
   /* ===== Visão mobile (cards em vez de tabela) ===== */
   .mobile-list { display: none; }
   .truck-card {
@@ -115,6 +142,7 @@
     .cards { grid-template-columns: repeat(2, 1fr); }
     table { display: none; }
     .mobile-list { display: block; }
+    .chip { padding: 10px 16px; font-size: 14px; }
   }
 </style>
 </head>
@@ -124,6 +152,8 @@
 <div class="subtitle" id="subtitle">Carregando dados da planilha...</div>
 
 <div class="error-banner" id="errorBanner"></div>
+
+<div class="filtros" id="filtros"></div>
 
 <div class="cards">
   <div class="card total"><div class="num" id="cardTotal">–</div><div class="label">No pátio</div></div>
@@ -164,6 +194,8 @@
 
   var caminhoes = []; // cache da última leitura
   var CALLBACK_NAME = 'onDadosYms';
+  var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
+  var filtroAtual = localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
 
   function carregarDados() {
     if (!WEBAPP_URL || WEBAPP_URL.indexOf('COLE_AQUI') !== -1) {
@@ -228,13 +260,59 @@
     return (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(s);
   }
 
+  function normalizarTransportadora(t) {
+    return (t || 'SEM TRANSPORTADORA').trim();
+  }
+
+  function renderFiltros(todos) {
+    var contagemPorTransportadora = {};
+    todos.forEach(function (c) {
+      var nome = normalizarTransportadora(c.transportadora);
+      contagemPorTransportadora[nome] = (contagemPorTransportadora[nome] || 0) + 1;
+    });
+    var transportadoras = Object.keys(contagemPorTransportadora).sort();
+
+    // se a transportadora salva no localStorage não existe mais nos dados atuais, volta pra "Todas"
+    if (filtroAtual !== 'TODAS' && transportadoras.indexOf(filtroAtual) === -1) {
+      filtroAtual = 'TODAS';
+      localStorage.setItem(FILTRO_STORAGE_KEY, filtroAtual);
+    }
+
+    var chipsHtml = '<button class="chip' + (filtroAtual === 'TODAS' ? ' active' : '') + '" data-transportadora="TODAS">' +
+      'Todas <span class="chip-count">' + todos.length + '</span></button>';
+
+    chipsHtml += transportadoras.map(function (nome) {
+      var ativo = filtroAtual === nome ? ' active' : '';
+      return '<button class="chip' + ativo + '" data-transportadora="' + nome.replace(/"/g, '&quot;') + '">' +
+        nome + ' <span class="chip-count">' + contagemPorTransportadora[nome] + '</span></button>';
+    }).join('');
+
+    var filtrosEl = document.getElementById('filtros');
+    filtrosEl.innerHTML = chipsHtml;
+
+    Array.prototype.forEach.call(filtrosEl.querySelectorAll('.chip'), function (btn) {
+      btn.addEventListener('click', function () {
+        filtroAtual = btn.getAttribute('data-transportadora');
+        localStorage.setItem(FILTRO_STORAGE_KEY, filtroAtual);
+        render();
+      });
+    });
+  }
+
   function render() {
     var agora = new Date();
-    var enriquecido = caminhoes.map(function (c) {
+    var todosEnriquecidos = caminhoes.map(function (c) {
       var minutos = (agora.getTime() - c.entrada.getTime()) / 60000;
       var status = classificar(minutos);
-      return Object.assign({}, c, { minutos: minutos, status: status });
+      return Object.assign({}, c, { minutos: minutos, status: status, transportadoraNormalizada: normalizarTransportadora(c.transportadora) });
     });
+
+    renderFiltros(todosEnriquecidos);
+
+    var enriquecido = filtroAtual === 'TODAS'
+      ? todosEnriquecidos
+      : todosEnriquecidos.filter(function (c) { return c.transportadoraNormalizada === filtroAtual; });
+
     enriquecido.sort(function (a, b) { return b.minutos - a.minutos; });
 
     var counts = { ok: 0, amarelo: 0, laranja: 0, vermelho: 0 };
@@ -249,8 +327,11 @@
     var mobileList = document.getElementById('mobileList');
 
     if (enriquecido.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum caminhão no pátio no momento 🎉</td></tr>';
-      mobileList.innerHTML = '<div class="empty-state">Nenhum caminhão no pátio no momento 🎉</div>';
+      var msgVazio = filtroAtual === 'TODAS'
+        ? 'Nenhum caminhão no pátio no momento 🎉'
+        : 'Nenhum caminhão de "' + filtroAtual + '" no pátio no momento 🎉';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msgVazio + '</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">' + msgVazio + '</div>';
       return;
     }
 
