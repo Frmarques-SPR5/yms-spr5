@@ -1,57 +1,724 @@
-═══════════════════════════════════════════════════════════════
-  ADAPTAÇÃO DO YMS — travar filtro por transportadora via URL
-═══════════════════════════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel YMS — Guarapuava</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --ok: #16a34a;
+    --amarelo: #f2c94c;
+    --laranja: #ff9900;
+    --vermelho: #e5484d;
+    --azul: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 24px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card .num { font-size: 28px; font-weight: 700; }
+  .card .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .card.total .num { color: #fff; }
+  .card.ok .num { color: var(--ok); }
+  .card.amarelo .num { color: var(--amarelo); }
+  .card.laranja .num { color: var(--laranja); }
+  .card.vermelho .num { color: var(--vermelho); }
 
-O hub abre o YMS assim:  https://frmarques-spr5.github.io/yms-spr5/?transp=BLD LOGÍSTICA
+  table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em; }
+  tr:last-child td { border-bottom: none; }
+  tr.row-ok { background: transparent; }
+  tr.row-amarelo { background: rgba(242, 201, 76, 0.18); }
+  tr.row-laranja { background: rgba(255, 153, 0, 0.20); }
+  tr.row-vermelho { background: rgba(229, 72, 77, 0.25); }
+  tr.row-compacta td.col-secundaria { opacity: 0.4; }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-ok { background: rgba(22,163,74,0.2); color: #4ade80; }
+  .badge-amarelo { background: rgba(242,201,76,0.25); color: #f2c94c; }
+  .badge-laranja { background: rgba(255,153,0,0.25); color: #ffb84d; }
+  .badge-vermelho { background: rgba(229,72,77,0.3); color: #f87171; }
+  .tempo { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); }
+  .error-banner {
+    background: #7f1d1d;
+    color: #fecaca;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    display: none;
+  }
+  .footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
 
-Para o YMS ler esse ?transp= e travar na transportadora certa,
-faça esta ÚNICA alteração no index.html do YMS:
+  /* ===== Abas (No pátio / Histórico) ===== */
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--card-bg); color: #fff; border-color: var(--azul); }
 
-───────────────────────────────────────────────────────────────
-PASSO ÚNICO — localize estas linhas (perto do topo do <script>):
-───────────────────────────────────────────────────────────────
+  /* ===== Filtro por transportadora ===== */
+  .filtros {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 18px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .filtros::-webkit-scrollbar { height: 4px; }
+  .chip {
+    flex: 0 0 auto;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chip .chip-count { color: var(--muted); font-weight: 500; margin-left: 4px; }
+  .chip.active { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .chip.active .chip-count { color: rgba(255,255,255,0.75); }
 
+  /* ===== Botão / selo de monitoramento ===== */
+  .btn-confirmar {
+    background: var(--azul);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-confirmar:disabled { opacity: 0.6; cursor: default; }
+  .selo-monitorado {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(22,163,74,0.18);
+    color: #4ade80;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .selo-monitorado .ponto { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
+  .proxima-checagem { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ===== Histórico: comentário ===== */
+  .comentario-wrap { display: flex; gap: 6px; align-items: center; }
+  .comentario-input {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    width: 160px;
+  }
+  .btn-salvar-comentario {
+    background: var(--azul);
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-salvar-comentario.salvo { background: var(--ok); }
+
+  /* ===== Visão mobile (cards em vez de tabela) ===== */
+  .mobile-list { display: none; }
+  .truck-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .truck-card.tier-amarelo { border-left-color: var(--amarelo); }
+  .truck-card.tier-laranja { border-left-color: var(--laranja); }
+  .truck-card.tier-vermelho { border-left-color: var(--vermelho); }
+  .truck-card.tier-ok { border-left-color: var(--ok); }
+  .truck-card.compacto { padding: 8px 12px; border-left-color: var(--ok); }
+  .truck-card .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .truck-card.compacto .top-row { margin-bottom: 0; }
+  .truck-card .placa { font-size: 18px; font-weight: 700; }
+  .truck-card.compacto .placa { font-size: 15px; }
+  .truck-card .tempo-mobile { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; }
+  .truck-card .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    font-size: 13px;
+  }
+  .truck-card .info-grid .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .truck-card .info-grid div div:last-child { margin-top: 1px; }
+  .truck-card .bottom-row { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .truck-card.compacto .compact-line { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  @media (max-width: 720px) {
+    body { padding: 14px; }
+    h1 { font-size: 20px; }
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    table { display: none; }
+    .mobile-list { display: block; }
+    .chip { padding: 10px 16px; font-size: 14px; }
+    .tab-btn { padding: 10px 16px; font-size: 14px; flex: 1; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<h1>🚚 Painel YMS — Guarapuava</h1>
+<div class="subtitle" id="subtitle">Carregando dados da planilha...</div>
+
+<div class="error-banner" id="errorBanner"></div>
+
+<div class="tabs" id="tabs">
+  <button class="tab-btn active" data-modo="patio">No pátio</button>
+  <button class="tab-btn" data-modo="historico">Histórico de hoje</button>
+</div>
+
+<div class="filtros" id="filtros"></div>
+
+<div class="cards" id="cardsPatio">
+  <div class="card total"><div class="num" id="cardTotal">–</div><div class="label">No pátio</div></div>
+  <div class="card ok"><div class="num" id="cardOk">–</div><div class="label">Normal (&lt;15min)</div></div>
+  <div class="card amarelo"><div class="num" id="cardAmarelo">–</div><div class="label">⚠️ 15–20min</div></div>
+  <div class="card laranja"><div class="num" id="cardLaranja">–</div><div class="label">Atenção⚠️ 20–25min</div></div>
+  <div class="card vermelho"><div class="num" id="cardVermelho">–</div><div class="label">Possível ofensora⚠️ 25min+</div></div>
+</div>
+
+<table id="tabelaPatio">
+  <thead>
+    <tr>
+      <th>Placa</th>
+      <th>Vaga</th>
+      <th class="col-secundaria">Tipo de veículo</th>
+      <th class="col-secundaria">Transportadora</th>
+      <th>Entrada</th>
+      <th class="col-secundaria">Tempo no pátio</th>
+      <th>Monitoramento</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody">
+    <tr><td colspan="7" class="empty-state">Carregando...</td></tr>
+  </tbody>
+</table>
+
+<table id="tabelaHistorico" style="display:none;">
+  <thead>
+    <tr>
+      <th>Placa</th>
+      <th>Vaga</th>
+      <th>Tipo de veículo</th>
+      <th>Transportadora</th>
+      <th>Entrada</th>
+      <th>Saída</th>
+      <th>Tempo total</th>
+      <th>Comentário (motivo do atraso)</th>
+    </tr>
+  </thead>
+  <tbody id="tableBodyHistorico">
+    <tr><td colspan="8" class="empty-state">Carregando...</td></tr>
+  </tbody>
+</table>
+
+<div class="mobile-list" id="mobileList"></div>
+
+<div class="footer" id="footer"></div>
+
+<script>
+  // ====== CONFIGURAÇÃO ======
+  var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwLHh0bBrkcQjv8mBDZthaq33MP9riVQ5dvZcE_LWIxd0qUY4govgU3_-JOS-FWWuXjJw/exec';
+  var REFETCH_MS = 30000;  // busca dados novos a cada 30s
+  var RETICK_MS  = 1000;   // recalcula tempo/cor/estado compacto a cada 1s
+  var INTERVALO_1A_CONFIRMACAO_MIN = 15; // depois da 1ª confirmação, pede de novo em 15min
+  var INTERVALO_PROX_CONFIRMACOES_MIN = 5; // da 2ª em diante, pede a cada 5min
+  // ===========================
+
+  var caminhoes = [];
+  var historico = [];
+  var historicoCarregado = false;
+  var modoAtual = 'patio';
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
   var filtroAtual = localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
 
+  // ---------- Comunicação com o Web App (JSONP, sem CORS) ----------
+  function chamarWebApp(params, onResult, onErro) {
+    if (!WEBAPP_URL || WEBAPP_URL.indexOf('COLE_AQUI') !== -1) {
+      onErro && onErro('Configure a variável WEBAPP_URL no topo do index.html.');
+      return;
+    }
+    var cbName = 'ymsCb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    var script = document.createElement('script');
 
-E SUBSTITUA por este bloco:
-───────────────────────────────────────────────────────────────
+    window[cbName] = function (resp) {
+      onResult(resp);
+      delete window[cbName];
+      script.remove();
+    };
 
-  var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
+    var qs = Object.keys(params).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
 
-  // Lê ?transp= da URL (quando aberto pelo hub). Se vier, trava nessa transportadora.
-  var TRANSP_TRAVADA = null;
-  (function () {
-    var m = window.location.search.match(/[?&]transp=([^&]+)/);
-    if (m) { TRANSP_TRAVADA = decodeURIComponent(m[1].replace(/\+/g, ' ')); }
-  })();
+    script.src = WEBAPP_URL + '?' + qs + (qs ? '&' : '') + 'callback=' + cbName + '&_=' + Date.now();
+    script.onerror = function () {
+      onErro && onErro('Não consegui carregar os dados. Confirme se o Web App foi implantado com acesso "Qualquer pessoa" e se a URL em WEBAPP_URL está correta.');
+      delete window[cbName];
+      script.remove();
+    };
+    document.body.appendChild(script);
+    setTimeout(function () { if (window[cbName]) { script.remove(); } }, 10000);
+  }
 
-  var filtroAtual = TRANSP_TRAVADA || localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
+  function mostrarErro(msg) {
+    var banner = document.getElementById('errorBanner');
+    banner.textContent = msg;
+    banner.style.display = 'block';
+  }
 
+  function esconderErro() {
+    document.getElementById('errorBanner').style.display = 'none';
+  }
 
-───────────────────────────────────────────────────────────────
-PASSO 2 (opcional, recomendado) — esconder as abas de outras
-transportadoras quando estiver travado.
-───────────────────────────────────────────────────────────────
+  function carregarPatio() {
+    chamarWebApp({}, function (resp) {
+      esconderErro();
+      try {
+        caminhoes = (resp.caminhoes || []).map(function (item) {
+          return {
+            placa: item.placa,
+            vaga: item.vaga || '',
+            tipo: item.tipo || '',
+            transportadora: item.transportadora || '',
+            entrada: new Date(item.entradaISO),
+            confirmadoEm: item.confirmadoEmISO ? new Date(item.confirmadoEmISO) : null,
+            confirmacaoCount: item.confirmacaoCount || 0
+          };
+        });
+        document.getElementById('subtitle').textContent =
+          'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
+        render();
+      } catch (err) {
+        mostrarErro('Erro lendo os dados: ' + err.message);
+      }
+    }, mostrarErro);
+  }
 
-Localize a função "renderFiltros" e, logo na PRIMEIRA linha dentro
-dela (depois de "function renderFiltros(todos) {"), adicione:
+  function carregarHistorico() {
+    chamarWebApp({ action: 'historico' }, function (resp) {
+      esconderErro();
+      try {
+        historico = (resp.historico || []).map(function (item) {
+          return {
+            placa: item.placa,
+            vaga: item.vaga || '',
+            tipo: item.tipo || '',
+            transportadora: item.transportadora || '',
+            entrada: new Date(item.entradaISO),
+            saida: item.saidaISO ? new Date(item.saidaISO) : null,
+            tempoMinutos: item.tempoMinutos,
+            registradoEmISO: item.registradoEmISO,
+            comentario: item.comentario || ''
+          };
+        });
+        historicoCarregado = true;
+        render();
+      } catch (err) {
+        mostrarErro('Erro lendo o histórico: ' + err.message);
+      }
+    }, mostrarErro);
+  }
 
-    if (TRANSP_TRAVADA) {
-      // filtra a lista para conter só a transportadora travada
-      todos = todos.filter(function (c) {
-        return normalizarTransportadora(c.transportadora) === TRANSP_TRAVADA;
-      });
-      // esconde a barra de chips (usuário não troca de transportadora)
-      document.getElementById('filtros').style.display = 'none';
+  function confirmarMonitoramento(placa, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Confirmando...';
+    chamarWebApp({ action: 'confirmar', placa: placa }, function (resp) {
+      if (resp.ok) {
+        var item = caminhoes.find(function (c) { return c.placa === placa; });
+        if (item) {
+          item.confirmadoEm = new Date(resp.confirmadoEmISO);
+          item.confirmacaoCount = resp.confirmacaoCount;
+        }
+        render();
+      } else {
+        mostrarErro('Não consegui confirmar: ' + (resp.erro || 'erro desconhecido'));
+        btn.disabled = false;
+        btn.textContent = '👁️ Confirmar monitoramento';
+      }
+    }, function (msg) {
+      mostrarErro(msg);
+      btn.disabled = false;
+      btn.textContent = '👁️ Confirmar monitoramento';
+    });
+  }
+
+  function salvarComentario(placa, registradoEmISO, texto, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    chamarWebApp({ action: 'comentario', placa: placa, registradoEm: registradoEmISO, texto: texto }, function (resp) {
+      btn.disabled = false;
+      if (resp.ok) {
+        btn.textContent = 'Salvo ✓';
+        btn.classList.add('salvo');
+        var item = historico.find(function (h) { return h.placa === placa && h.registradoEmISO === registradoEmISO; });
+        if (item) item.comentario = texto;
+        setTimeout(function () { btn.textContent = 'Salvar'; btn.classList.remove('salvo'); }, 2000);
+      } else {
+        btn.textContent = 'Salvar';
+        mostrarErro('Não consegui salvar o comentário: ' + (resp.erro || 'erro desconhecido'));
+      }
+    }, function (msg) {
+      btn.disabled = false;
+      btn.textContent = 'Salvar';
+      mostrarErro(msg);
+    });
+  }
+
+  function classificar(minutos) {
+    if (minutos >= 25) return { tier: 'vermelho', label: 'Possível ofensora⚠️' };
+    if (minutos >= 20) return { tier: 'laranja', label: 'Atenção⚠️' };
+    if (minutos >= 15) return { tier: 'amarelo', label: '⚠️' };
+    return { tier: 'ok', label: '' };
+  }
+
+  function fmtTempo(minutosTotais) {
+    if (minutosTotais == null || isNaN(minutosTotais)) return '—';
+    var totalSeg = Math.floor(minutosTotais * 60);
+    var h = Math.floor(totalSeg / 3600);
+    var m = Math.floor((totalSeg % 3600) / 60);
+    var s = totalSeg % 60;
+    function pad(n) { return String(n).padStart(2, '0'); }
+    return (h > 0 ? pad(h) + ':' : '') + pad(m) + ':' + pad(s);
+  }
+
+  function fmtHora(d) {
+    return d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  }
+
+  function normalizarTransportadora(t) {
+    return (t || 'SEM TRANSPORTADORA').trim();
+  }
+
+  function renderFiltros(todos) {
+    var contagemPorTransportadora = {};
+    todos.forEach(function (c) {
+      var nome = normalizarTransportadora(c.transportadora);
+      contagemPorTransportadora[nome] = (contagemPorTransportadora[nome] || 0) + 1;
+    });
+    var transportadoras = Object.keys(contagemPorTransportadora).sort();
+
+    if (filtroAtual !== 'TODAS' && transportadoras.indexOf(filtroAtual) === -1) {
+      filtroAtual = 'TODAS';
+      localStorage.setItem(FILTRO_STORAGE_KEY, filtroAtual);
     }
 
-───────────────────────────────────────────────────────────────
+    var chipsHtml = '<button class="chip' + (filtroAtual === 'TODAS' ? ' active' : '') + '" data-transportadora="TODAS">' +
+      'Todas <span class="chip-count">' + todos.length + '</span></button>';
 
-Pronto! Depois disso:
-- Quando o YMS abre normal (link direto), funciona como antes (todas).
-- Quando abre pelo hub com ?transp=BLD LOGÍSTICA, mostra só a BLD
-  e some a barra de troca de transportadora.
+    chipsHtml += transportadoras.map(function (nome) {
+      var ativo = filtroAtual === nome ? ' active' : '';
+      return '<button class="chip' + ativo + '" data-transportadora="' + nome.replace(/"/g, '&quot;') + '">' +
+        nome + ' <span class="chip-count">' + contagemPorTransportadora[nome] + '</span></button>';
+    }).join('');
 
-MELI: o hub NÃO passa ?transp= para o login MELI, então ele vê todas.
+    var filtrosEl = document.getElementById('filtros');
+    filtrosEl.innerHTML = chipsHtml;
+
+    Array.prototype.forEach.call(filtrosEl.querySelectorAll('.chip'), function (btn) {
+      btn.addEventListener('click', function () {
+        filtroAtual = btn.getAttribute('data-transportadora');
+        localStorage.setItem(FILTRO_STORAGE_KEY, filtroAtual);
+        render();
+      });
+    });
+  }
+
+  function trocarModo(modo) {
+    modoAtual = modo;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-modo') === modo);
+    });
+    document.getElementById('cardsPatio').style.display = modo === 'patio' ? 'grid' : 'none';
+    document.getElementById('tabelaPatio').style.display = modo === 'patio' ? '' : 'none';
+    document.getElementById('tabelaHistorico').style.display = modo === 'historico' ? '' : 'none';
+
+    if (modo === 'historico' && !historicoCarregado) {
+      carregarHistorico();
+    }
+    render();
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var btn = e.target.closest('.tab-btn');
+    if (btn) trocarModo(btn.getAttribute('data-modo'));
+  });
+
+  // Calcula se o caminhão está em estado "compacto" (monitorado, dentro da janela
+  // de confirmação) ou precisa reaparecer pedindo nova confirmação.
+  function calcularEstadoMonitoramento(c, agora) {
+    var intervaloExigido = (c.confirmacaoCount >= 2) ? INTERVALO_PROX_CONFIRMACOES_MIN : INTERVALO_1A_CONFIRMACAO_MIN;
+    var minutosDesdeConfirmacao = c.confirmadoEm ? (agora.getTime() - c.confirmadoEm.getTime()) / 60000 : null;
+    var precisaReconfirmar = !c.confirmadoEm || minutosDesdeConfirmacao >= intervaloExigido;
+    var minutosAteProximaChecagem = (!precisaReconfirmar) ? Math.max(0, intervaloExigido - minutosDesdeConfirmacao) : 0;
+    return { compacto: !precisaReconfirmar, minutosAteProximaChecagem: minutosAteProximaChecagem };
+  }
+
+  function renderPatio() {
+    var agora = new Date();
+    var todosEnriquecidos = caminhoes.map(function (c) {
+      var minutos = (agora.getTime() - c.entrada.getTime()) / 60000;
+      var status = classificar(minutos);
+      var estado = calcularEstadoMonitoramento(c, agora);
+      return Object.assign({}, c, {
+        minutos: minutos,
+        status: status,
+        transportadoraNormalizada: normalizarTransportadora(c.transportadora),
+        compacto: estado.compacto,
+        minutosAteProximaChecagem: estado.minutosAteProximaChecagem
+      });
+    });
+
+    renderFiltros(todosEnriquecidos);
+
+    var enriquecido = filtroAtual === 'TODAS'
+      ? todosEnriquecidos
+      : todosEnriquecidos.filter(function (c) { return c.transportadoraNormalizada === filtroAtual; });
+
+    enriquecido.sort(function (a, b) { return b.minutos - a.minutos; });
+
+    var counts = { ok: 0, amarelo: 0, laranja: 0, vermelho: 0 };
+    enriquecido.forEach(function (c) { counts[c.status.tier]++; });
+    document.getElementById('cardTotal').textContent = enriquecido.length;
+    document.getElementById('cardOk').textContent = counts.ok;
+    document.getElementById('cardAmarelo').textContent = counts.amarelo;
+    document.getElementById('cardLaranja').textContent = counts.laranja;
+    document.getElementById('cardVermelho').textContent = counts.vermelho;
+
+    var tbody = document.getElementById('tableBody');
+    var mobileList = document.getElementById('mobileList');
+
+    if (enriquecido.length === 0) {
+      var msgVazio = filtroAtual === 'TODAS'
+        ? 'Nenhum veículo carregando no momento 🎉'
+        : 'Nenhum veículo de "' + filtroAtual + '" carregando no momento 🎉';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msgVazio + '</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">' + msgVazio + '</div>';
+      return;
+    }
+
+    function monitoramentoHtml(c) {
+      if (c.compacto) {
+        return '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
+          '<div class="proxima-checagem">próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>';
+      }
+      return '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
+    }
+
+    tbody.innerHTML = enriquecido.map(function (c) {
+      var trClass = c.compacto ? 'row-compacta' : 'row-' + c.status.tier;
+      var statusColSecundaria = c.compacto ? '' : (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>');
+      return '<tr class="' + trClass + '">' +
+        '<td><strong>' + c.placa + '</strong></td>' +
+        '<td>' + c.vaga + '</td>' +
+        '<td class="col-secundaria">' + c.tipo + '</td>' +
+        '<td class="col-secundaria">' + c.transportadora + '</td>' +
+        '<td>' + fmtHora(c.entrada) + '</td>' +
+        '<td class="tempo col-secundaria">' + fmtTempo(c.minutos) + (statusColSecundaria ? ' ' + statusColSecundaria : '') + '</td>' +
+        '<td>' + monitoramentoHtml(c) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    mobileList.innerHTML = enriquecido.map(function (c) {
+      if (c.compacto) {
+        return '<div class="truck-card compacto">' +
+          '<div class="top-row">' +
+            '<span class="placa">' + c.placa + ' · Vaga ' + (c.vaga || '—') + '</span>' +
+            '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
+          '</div>' +
+          '<div class="compact-line">Carregando desde ' + fmtHora(c.entrada) + ' · próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>' +
+        '</div>';
+      }
+      var badge = c.status.label
+        ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>'
+        : '<span class="badge badge-ok">no prazo</span>';
+      return '<div class="truck-card tier-' + c.status.tier + '">' +
+        '<div class="top-row">' +
+          '<span class="placa">' + c.placa + '</span>' +
+          '<span class="tempo-mobile">' + fmtTempo(c.minutos) + '</span>' +
+        '</div>' +
+        '<div class="info-grid">' +
+          '<div><div class="label">Vaga</div><div>' + (c.vaga || '—') + '</div></div>' +
+          '<div><div class="label">Entrada</div><div>' + fmtHora(c.entrada) + '</div></div>' +
+          '<div><div class="label">Tipo</div><div>' + (c.tipo || '—') + '</div></div>' +
+          '<div><div class="label">Transportadora</div><div>' + (c.transportadora || '—') + '</div></div>' +
+          '<div><div class="label">Status</div><div>' + badge + '</div></div>' +
+        '</div>' +
+        '<div class="bottom-row">' + monitoramentoHtml(c) + '</div>' +
+      '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call(document.querySelectorAll('.btn-confirmar'), function (btn) {
+      btn.addEventListener('click', function () {
+        confirmarMonitoramento(btn.getAttribute('data-placa'), btn);
+      });
+    });
+
+    document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · atualização automática';
+  }
+
+  function renderHistorico() {
+    var enriquecido = historico.map(function (h) {
+      return Object.assign({}, h, { transportadoraNormalizada: normalizarTransportadora(h.transportadora) });
+    });
+
+    renderFiltros(enriquecido);
+
+    var filtrado = filtroAtual === 'TODAS'
+      ? enriquecido
+      : enriquecido.filter(function (h) { return h.transportadoraNormalizada === filtroAtual; });
+
+    var tbodyHist = document.getElementById('tableBodyHistorico');
+    var mobileList = document.getElementById('mobileList');
+
+    if (!historicoCarregado) {
+      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Carregando histórico...</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">Carregando histórico...</div>';
+      return;
+    }
+
+    if (filtrado.length === 0) {
+      var msgVazioHist = 'Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"');
+      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">' + msgVazioHist + '</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">' + msgVazioHist + '</div>';
+      return;
+    }
+
+    tbodyHist.innerHTML = filtrado.map(function (h, idx) {
+      var inputId = 'coment_' + idx;
+      return '<tr>' +
+        '<td><strong>' + h.placa + '</strong></td>' +
+        '<td>' + h.vaga + '</td>' +
+        '<td>' + h.tipo + '</td>' +
+        '<td>' + h.transportadora + '</td>' +
+        '<td>' + fmtHora(h.entrada) + '</td>' +
+        '<td>' + fmtHora(h.saida) + '</td>' +
+        '<td class="tempo">' + fmtTempo(h.tempoMinutos) + '</td>' +
+        '<td><div class="comentario-wrap">' +
+          '<input class="comentario-input" id="' + inputId + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso...">' +
+          '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputId + '">Salvar</button>' +
+        '</div></td>' +
+        '</tr>';
+    }).join('');
+
+    Array.prototype.forEach.call(tbodyHist.querySelectorAll('.btn-salvar-comentario'), function (btn) {
+      btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.getAttribute('data-input'));
+        salvarComentario(btn.getAttribute('data-placa'), btn.getAttribute('data-registrado'), input.value, btn);
+      });
+    });
+
+    mobileList.innerHTML = filtrado.map(function (h, idx) {
+      var inputId = 'coment_m_' + idx;
+      return '<div class="truck-card">' +
+        '<div class="top-row">' +
+          '<span class="placa">' + h.placa + ' · Vaga ' + (h.vaga || '—') + '</span>' +
+          '<span class="tempo-mobile">' + fmtTempo(h.tempoMinutos) + '</span>' +
+        '</div>' +
+        '<div class="info-grid">' +
+          '<div><div class="label">Tipo</div><div>' + (h.tipo || '—') + '</div></div>' +
+          '<div><div class="label">Transportadora</div><div>' + (h.transportadora || '—') + '</div></div>' +
+          '<div><div class="label">Entrada</div><div>' + fmtHora(h.entrada) + '</div></div>' +
+          '<div><div class="label">Saída</div><div>' + fmtHora(h.saida) + '</div></div>' +
+        '</div>' +
+        '<div class="bottom-row" style="flex-direction: column; align-items: stretch; gap: 6px;">' +
+          '<div class="label">Comentário (motivo do atraso)</div>' +
+          '<div class="comentario-wrap">' +
+            '<input class="comentario-input" style="flex: 1; width: auto;" id="' + inputId + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso...">' +
+            '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputId + '">Salvar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call(mobileList.querySelectorAll('.btn-salvar-comentario'), function (btn) {
+      btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.getAttribute('data-input'));
+        salvarComentario(btn.getAttribute('data-placa'), btn.getAttribute('data-registrado'), input.value, btn);
+      });
+    });
+
+    document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · histórico de hoje';
+  }
+
+  function render() {
+    if (modoAtual === 'patio') {
+      renderPatio();
+    } else {
+      renderHistorico();
+    }
+  }
+
+  carregarPatio();
+  setInterval(function () {
+    carregarPatio();
+    if (modoAtual === 'historico') carregarHistorico();
+  }, REFETCH_MS);
+  setInterval(function () { if (modoAtual === 'patio') render(); }, RETICK_MS);
+</script>
+
+</body>
+</html>
