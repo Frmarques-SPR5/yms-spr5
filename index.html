@@ -131,6 +131,37 @@
     white-space: nowrap;
   }
   .btn-confirmar:disabled { opacity: 0.6; cursor: default; }
+
+  /* ===== Botão Aduana ===== */
+  .btn-aduana {
+    background: transparent;
+    color: var(--laranja);
+    border: 1px solid var(--laranja);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .btn-aduana:disabled { opacity: 0.6; cursor: default; }
+  .btn-aduana.ativa { background: var(--laranja); color: #1c1c1e; }
+  .selo-aduana {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,153,0,0.2);
+    color: var(--laranja);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .acoes-wrap { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .selo-monitorado {
     display: inline-flex;
     align-items: center;
@@ -288,6 +319,7 @@
   var historicoCarregado = false;
   var modoAtual = 'patio';
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
+  var aduanaPorPlaca = {};   // { PLACA: true } — marcações de aduana de hoje
 
   // ===== FILTRO TRAVADO VIA URL (quando aberto pelo hub) =====
   var TRANSP_TRAVADA = null;
@@ -353,7 +385,7 @@
         });
         document.getElementById('subtitle').textContent =
           'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
-        render();
+        carregarAduana(render);
       } catch (err) {
         mostrarErro('Erro lendo os dados: ' + err.message);
       }
@@ -378,11 +410,50 @@
           };
         });
         historicoCarregado = true;
-        render();
+        carregarAduana(render);
       } catch (err) {
         mostrarErro('Erro lendo o histórico: ' + err.message);
       }
     }, mostrarErro);
+  }
+
+  // ===== ADUANA =====
+  function carregarAduana(cb) {
+    chamarWebApp({ action: 'getAduana' }, function (resp) {
+      aduanaPorPlaca = {};
+      (resp.aduana || []).forEach(function (a) {
+        if (a && a.placa) aduanaPorPlaca[String(a.placa).trim().toUpperCase()] = true;
+      });
+      if (cb) cb();
+    }, function () { if (cb) cb(); }); // se falhar, segue sem aduana
+  }
+
+  function estaComAduana(placa) {
+    return !!aduanaPorPlaca[String(placa || '').trim().toUpperCase()];
+  }
+
+  function marcarAduana(placa, btn) {
+    var jaMarcado = estaComAduana(placa);
+    var novoValor = jaMarcado ? 'NAO' : 'SIM';
+    btn.disabled = true;
+    var textoOriginal = btn.innerHTML;
+    btn.textContent = '...';
+    chamarWebApp({ action: 'marcarAduana', placa: placa, valor: novoValor }, function (resp) {
+      btn.disabled = false;
+      if (resp && resp.ok) {
+        var chave = String(placa).trim().toUpperCase();
+        if (novoValor === 'SIM') { aduanaPorPlaca[chave] = true; }
+        else { delete aduanaPorPlaca[chave]; }
+        render();
+      } else {
+        btn.innerHTML = textoOriginal;
+        mostrarErro('Não consegui marcar aduana: ' + ((resp && resp.erro) || 'erro desconhecido'));
+      }
+    }, function (msg) {
+      btn.disabled = false;
+      btn.innerHTML = textoOriginal;
+      mostrarErro(msg);
+    });
   }
 
   function confirmarMonitoramento(placa, btn) {
@@ -567,11 +638,16 @@
     }
 
     function monitoramentoHtml(c) {
+      var aduanaAtiva = estaComAduana(c.placa);
+      var btnAduana = '<button class="btn-aduana' + (aduanaAtiva ? ' ativa' : '') + '" data-placa-aduana="' + c.placa + '">🛃 Aduana' + (aduanaAtiva ? ' ✓' : '') + '</button>';
+      var monitor;
       if (c.compacto) {
-        return '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
+        monitor = '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
           '<div class="proxima-checagem">próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>';
+      } else {
+        monitor = '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
       }
-      return '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
+      return '<div class="acoes-wrap">' + monitor + btnAduana + '</div>';
     }
 
     tbody.innerHTML = enriquecido.map(function (c) {
@@ -623,12 +699,21 @@
       });
     });
 
+    Array.prototype.forEach.call(document.querySelectorAll('.btn-aduana'), function (btn) {
+      btn.addEventListener('click', function () {
+        marcarAduana(btn.getAttribute('data-placa-aduana'), btn);
+      });
+    });
+
     document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · atualização automática';
   }
 
   function renderHistorico() {
     var enriquecido = historico.map(function (h) {
-      return Object.assign({}, h, { transportadoraNormalizada: normalizarTransportadora(h.transportadora) });
+      return Object.assign({}, h, {
+        transportadoraNormalizada: normalizarTransportadora(h.transportadora),
+        temAduana: estaComAduana(h.placa)
+      });
     });
 
     renderFiltros(enriquecido);
@@ -636,6 +721,12 @@
     var filtrado = filtroAtual === 'TODAS'
       ? enriquecido
       : enriquecido.filter(function (h) { return h.transportadoraNormalizada === filtroAtual; });
+
+    // Mostra SÓ os casos relevantes: teve aduana OU passou de 30 min
+    filtrado = filtrado.filter(function (h) {
+      var passou30 = (typeof h.tempoMinutos === 'number') && h.tempoMinutos >= 30;
+      return h.temAduana || passou30;
+    });
 
     var tbodyHist = document.getElementById('tableBodyHistorico');
 
@@ -645,14 +736,15 @@
     }
 
     if (filtrado.length === 0) {
-      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
+      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum caso com aduana ou acima de 30 min hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
       return;
     }
 
     tbodyHist.innerHTML = filtrado.map(function (h, idx) {
       var inputId = 'coment_' + idx;
+      var seloAduana = h.temAduana ? ' <span class="selo-aduana">🛃 Aduana</span>' : '';
       return '<tr>' +
-        '<td><strong>' + h.placa + '</strong></td>' +
+        '<td><strong>' + h.placa + '</strong>' + seloAduana + '</td>' +
         '<td>' + h.vaga + '</td>' +
         '<td>' + h.tipo + '</td>' +
         '<td>' + h.transportadora + '</td>' +
