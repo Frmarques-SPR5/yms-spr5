@@ -553,8 +553,8 @@
 
     if (enriquecido.length === 0) {
       var msgVazio = filtroAtual === 'TODAS'
-        ? 'Nenhum veículo carregando no momento 🎉'
-        : 'Nenhum veículo de "' + filtroAtual + '" carregando no momento 🎉';
+        ? 'Nenhum caminhão no pátio no momento 🎉'
+        : 'Nenhum caminhão de "' + filtroAtual + '" no pátio no momento 🎉';
       tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msgVazio + '</td></tr>';
       mobileList.innerHTML = '<div class="empty-state">' + msgVazio + '</div>';
       return;
@@ -632,18 +632,14 @@
       : enriquecido.filter(function (h) { return h.transportadoraNormalizada === filtroAtual; });
 
     var tbodyHist = document.getElementById('tableBodyHistorico');
-    var mobileList = document.getElementById('mobileList');
 
     if (!historicoCarregado) {
       tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Carregando histórico...</td></tr>';
-      mobileList.innerHTML = '<div class="empty-state">Carregando histórico...</div>';
       return;
     }
 
     if (filtrado.length === 0) {
-      var msgVazioHist = 'Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"');
-      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">' + msgVazioHist + '</td></tr>';
-      mobileList.innerHTML = '<div class="empty-state">' + msgVazioHist + '</div>';
+      tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhuma saída registrada hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
       return;
     }
 
@@ -665,36 +661,6 @@
     }).join('');
 
     Array.prototype.forEach.call(tbodyHist.querySelectorAll('.btn-salvar-comentario'), function (btn) {
-      btn.addEventListener('click', function () {
-        var input = document.getElementById(btn.getAttribute('data-input'));
-        salvarComentario(btn.getAttribute('data-placa'), btn.getAttribute('data-registrado'), input.value, btn);
-      });
-    });
-
-    mobileList.innerHTML = filtrado.map(function (h, idx) {
-      var inputId = 'coment_m_' + idx;
-      return '<div class="truck-card">' +
-        '<div class="top-row">' +
-          '<span class="placa">' + h.placa + ' · Vaga ' + (h.vaga || '—') + '</span>' +
-          '<span class="tempo-mobile">' + fmtTempo(h.tempoMinutos) + '</span>' +
-        '</div>' +
-        '<div class="info-grid">' +
-          '<div><div class="label">Tipo</div><div>' + (h.tipo || '—') + '</div></div>' +
-          '<div><div class="label">Transportadora</div><div>' + (h.transportadora || '—') + '</div></div>' +
-          '<div><div class="label">Entrada</div><div>' + fmtHora(h.entrada) + '</div></div>' +
-          '<div><div class="label">Saída</div><div>' + fmtHora(h.saida) + '</div></div>' +
-        '</div>' +
-        '<div class="bottom-row" style="flex-direction: column; align-items: stretch; gap: 6px;">' +
-          '<div class="label">Comentário (motivo do atraso)</div>' +
-          '<div class="comentario-wrap">' +
-            '<input class="comentario-input" style="flex: 1; width: auto;" id="' + inputId + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso...">' +
-            '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputId + '">Salvar</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    Array.prototype.forEach.call(mobileList.querySelectorAll('.btn-salvar-comentario'), function (btn) {
       btn.addEventListener('click', function () {
         var input = document.getElementById(btn.getAttribute('data-input'));
         salvarComentario(btn.getAttribute('data-placa'), btn.getAttribute('data-registrado'), input.value, btn);
