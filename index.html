@@ -80,7 +80,6 @@
   }
   .footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
 
-  /* ===== Abas (No pátio / Histórico) ===== */
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .tab-btn {
     background: transparent;
@@ -94,7 +93,6 @@
   }
   .tab-btn.active { background: var(--card-bg); color: #fff; border-color: var(--azul); }
 
-  /* ===== Filtro por transportadora ===== */
   .filtros {
     display: flex;
     gap: 8px;
@@ -121,7 +119,6 @@
   .chip.active { background: var(--azul); border-color: var(--azul); color: #fff; }
   .chip.active .chip-count { color: rgba(255,255,255,0.75); }
 
-  /* ===== Botão / selo de monitoramento ===== */
   .btn-confirmar {
     background: var(--azul);
     color: #fff;
@@ -149,7 +146,6 @@
   .selo-monitorado .ponto { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
   .proxima-checagem { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-  /* ===== Histórico: comentário ===== */
   .comentario-wrap { display: flex; gap: 6px; align-items: center; }
   .comentario-input {
     background: #0f172a;
@@ -171,7 +167,6 @@
   }
   .btn-salvar-comentario.salvo { background: var(--ok); }
 
-  /* ===== Visão mobile (cards em vez de tabela) ===== */
   .mobile-list { display: none; }
   .truck-card {
     background: var(--card-bg);
@@ -282,10 +277,10 @@
 <script>
   // ====== CONFIGURAÇÃO ======
   var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwLHh0bBrkcQjv8mBDZthaq33MP9riVQ5dvZcE_LWIxd0qUY4govgU3_-JOS-FWWuXjJw/exec';
-  var REFETCH_MS = 30000;  // busca dados novos a cada 30s
-  var RETICK_MS  = 1000;   // recalcula tempo/cor/estado compacto a cada 1s
-  var INTERVALO_1A_CONFIRMACAO_MIN = 15; // depois da 1ª confirmação, pede de novo em 15min
-  var INTERVALO_PROX_CONFIRMACOES_MIN = 5; // da 2ª em diante, pede a cada 5min
+  var REFETCH_MS = 30000;
+  var RETICK_MS  = 1000;
+  var INTERVALO_1A_CONFIRMACAO_MIN = 15;
+  var INTERVALO_PROX_CONFIRMACOES_MIN = 5;
   // ===========================
 
   var caminhoes = [];
@@ -293,9 +288,16 @@
   var historicoCarregado = false;
   var modoAtual = 'patio';
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
-  var filtroAtual = localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
 
-  // ---------- Comunicação com o Web App (JSONP, sem CORS) ----------
+  // ===== FILTRO TRAVADO VIA URL (quando aberto pelo hub) =====
+  var TRANSP_TRAVADA = null;
+  (function () {
+    var m = window.location.search.match(/[?&]transp=([^&]+)/);
+    if (m) { TRANSP_TRAVADA = decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); }
+  })();
+
+  var filtroAtual = TRANSP_TRAVADA || localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
+
   function chamarWebApp(params, onResult, onErro) {
     if (!WEBAPP_URL || WEBAPP_URL.indexOf('COLE_AQUI') !== -1) {
       onErro && onErro('Configure a variável WEBAPP_URL no topo do index.html.');
@@ -454,6 +456,12 @@
   }
 
   function renderFiltros(todos) {
+    // Se travado via URL (aberto pelo hub): esconde a barra de chips.
+    if (TRANSP_TRAVADA) {
+      document.getElementById('filtros').style.display = 'none';
+      return;
+    }
+
     var contagemPorTransportadora = {};
     todos.forEach(function (c) {
       var nome = normalizarTransportadora(c.transportadora);
@@ -507,8 +515,6 @@
     if (btn) trocarModo(btn.getAttribute('data-modo'));
   });
 
-  // Calcula se o caminhão está em estado "compacto" (monitorado, dentro da janela
-  // de confirmação) ou precisa reaparecer pedindo nova confirmação.
   function calcularEstadoMonitoramento(c, agora) {
     var intervaloExigido = (c.confirmacaoCount >= 2) ? INTERVALO_PROX_CONFIRMACOES_MIN : INTERVALO_1A_CONFIRMACAO_MIN;
     var minutosDesdeConfirmacao = c.confirmadoEm ? (agora.getTime() - c.confirmadoEm.getTime()) / 60000 : null;
