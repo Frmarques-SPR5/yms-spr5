@@ -666,12 +666,15 @@
 
     mobileList.innerHTML = enriquecido.map(function (c) {
       if (c.compacto) {
+        var aduanaAtivaC = estaComAduana(c.placa);
+        var btnAduanaC = '<button class="btn-aduana' + (aduanaAtivaC ? ' ativa' : '') + '" data-placa-aduana="' + c.placa + '">🛃 Aduana' + (aduanaAtivaC ? ' ✓' : '') + '</button>';
         return '<div class="truck-card compacto">' +
           '<div class="top-row">' +
             '<span class="placa">' + c.placa + ' · Vaga ' + (c.vaga || '—') + '</span>' +
             '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
           '</div>' +
           '<div class="compact-line">Carregando desde ' + fmtHora(c.entrada) + ' · próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>' +
+          '<div class="bottom-row" style="margin-top:8px; justify-content:flex-end;">' + btnAduanaC + '</div>' +
         '</div>';
       }
       var badge = c.status.label
