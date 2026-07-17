@@ -254,6 +254,7 @@
 <div class="tabs" id="tabs">
   <button class="tab-btn active" data-modo="patio">No pátio</button>
   <button class="tab-btn" data-modo="historico">Histórico de hoje</button>
+  <button class="tab-btn" data-modo="feedback">💬 Feedback KN</button>
 </div>
 
 <div class="filtros" id="filtros"></div>
@@ -302,6 +303,31 @@
 </table>
 
 <div class="mobile-list" id="mobileList"></div>
+
+<div id="feedbackWrap" style="display:none; max-width:640px;">
+  <div style="background: var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:18px;">
+    <div style="font-size:16px; font-weight:700; margin-bottom:4px;">💬 Feedback sobre a KN — operação / carregamento</div>
+    <div style="font-size:13px; color: var(--muted); margin-bottom:16px;">Registre gaps e observações da operação para acompanharmos as melhorias.</div>
+
+    <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:5px;">Seu nome *</label>
+    <input id="fbNome" type="text" placeholder="Nome completo" style="width:100%; background:#0f172a; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px 12px; font-size:14px; margin-bottom:14px;">
+
+    <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:5px;">Tema *</label>
+    <select id="fbTema" style="width:100%; background:#0f172a; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px 12px; font-size:14px; margin-bottom:14px;">
+      <option value="">Selecione...</option>
+      <option value="Operação">Operação</option>
+      <option value="Carregamento">Carregamento</option>
+      <option value="Operação e Carregamento">Operação e Carregamento</option>
+      <option value="Outros">Outros</option>
+    </select>
+
+    <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:5px;">Feedback / gap identificado *</label>
+    <textarea id="fbTexto" placeholder="Descreva o que aconteceu, o gap ou a sugestão..." style="width:100%; min-height:110px; background:#0f172a; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px 12px; font-size:14px; resize:vertical; margin-bottom:14px;"></textarea>
+
+    <button id="fbEnviar" onclick="enviarFeedbackKN()" style="background:var(--azul,#2563eb); color:#fff; border:none; padding:11px 20px; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer;">Enviar feedback</button>
+    <div id="fbMsg" style="margin-top:12px; font-size:13px;"></div>
+  </div>
+</div>
 
 <div class="footer" id="footer"></div>
 
@@ -574,6 +600,11 @@
     document.getElementById('cardsPatio').style.display = modo === 'patio' ? 'grid' : 'none';
     document.getElementById('tabelaPatio').style.display = modo === 'patio' ? '' : 'none';
     document.getElementById('tabelaHistorico').style.display = modo === 'historico' ? '' : 'none';
+    var ehFeedback = (modo === 'feedback');
+    document.getElementById('feedbackWrap').style.display = ehFeedback ? 'block' : 'none';
+    document.getElementById('mobileList').style.display = ehFeedback ? 'none' : '';
+    var _filtrosEl = document.getElementById('filtros');
+    if (_filtrosEl) _filtrosEl.style.display = ehFeedback ? 'none' : '';
 
     if (modo === 'historico' && !historicoCarregado) {
       carregarHistorico();
@@ -732,14 +763,17 @@
     });
 
     var tbodyHist = document.getElementById('tableBodyHistorico');
+    var mobileList = document.getElementById('mobileList');
 
     if (!historicoCarregado) {
       tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Carregando histórico...</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">Carregando histórico...</div>';
       return;
     }
 
     if (filtrado.length === 0) {
       tbodyHist.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum caso com aduana ou acima de 30 min hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</td></tr>';
+      mobileList.innerHTML = '<div class="empty-state">Nenhum caso com aduana ou acima de 30 min hoje' + (filtroAtual === 'TODAS' ? '' : ' para "' + filtroAtual + '"') + '</div>';
       return;
     }
 
@@ -761,7 +795,32 @@
         '</tr>';
     }).join('');
 
-    Array.prototype.forEach.call(tbodyHist.querySelectorAll('.btn-salvar-comentario'), function (btn) {
+
+    // ===== Versão MOBILE do histórico (cards) — antes só existia a tabela, escondida no celular =====
+    mobileList.innerHTML = filtrado.map(function (h, idx) {
+      var inputIdM = 'coment_m_' + idx;
+      var passou30M = (typeof h.tempoMinutos === 'number') && h.tempoMinutos >= 30;
+      var tierM = passou30M ? 'tier-vermelho' : 'tier-ok';
+      var seloAduanaM = h.temAduana ? '<span class="selo-aduana">🛃 Aduana</span>' : '';
+      return '<div class="truck-card ' + tierM + '">' +
+        '<div class="top-row">' +
+          '<span class="placa">' + h.placa + '</span>' +
+          '<span class="tempo-mobile">' + fmtTempo(h.tempoMinutos) + '</span>' +
+        '</div>' +
+        '<div class="info-grid">' +
+          '<div><div class="label">Vaga</div><div>' + (h.vaga || '—') + '</div></div>' +
+          '<div><div class="label">Transportadora</div><div>' + (h.transportadora || '—') + '</div></div>' +
+          '<div><div class="label">Entrada</div><div>' + fmtHora(h.entrada) + '</div></div>' +
+          '<div><div class="label">Saída</div><div>' + fmtHora(h.saida) + '</div></div>' +
+        '</div>' +
+        (seloAduanaM ? '<div style="margin-top:8px;">' + seloAduanaM + '</div>' : '') +
+        '<div class="comentario-wrap" style="margin-top:10px;">' +
+          '<input class="comentario-input" id="' + inputIdM + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso..." style="flex:1;">' +
+          '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputIdM + '">Salvar</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.btn-salvar-comentario'), function (btn) {
       btn.addEventListener('click', function () {
         var input = document.getElementById(btn.getAttribute('data-input'));
         salvarComentario(btn.getAttribute('data-placa'), btn.getAttribute('data-registrado'), input.value, btn);
@@ -771,10 +830,41 @@
     document.getElementById('footer').textContent = 'GESTÃO YMS - Guarapuava · histórico de hoje';
   }
 
+  function enviarFeedbackKN() {
+    var nome  = document.getElementById('fbNome').value.trim();
+    var tema  = document.getElementById('fbTema').value;
+    var texto = document.getElementById('fbTexto').value.trim();
+    var msg   = document.getElementById('fbMsg');
+    msg.style.color = 'var(--vermelho)';
+    if (!nome)  { msg.textContent = 'Informe seu nome.'; return; }
+    if (!tema)  { msg.textContent = 'Selecione o tema.'; return; }
+    if (!texto) { msg.textContent = 'Descreva o feedback.'; return; }
+    var btn = document.getElementById('fbEnviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    msg.textContent = '';
+    chamarWebApp({ action: 'salvarFeedback', transportadora: 'KN', nome: nome, tema: tema, texto: texto }, function (resp) {
+      btn.disabled = false; btn.textContent = 'Enviar feedback';
+      if (resp && resp.ok) {
+        document.getElementById('fbNome').value = '';
+        document.getElementById('fbTema').value = '';
+        document.getElementById('fbTexto').value = '';
+        msg.style.color = 'var(--ok)';
+        msg.textContent = '✓ Feedback registrado. Obrigado!';
+      } else {
+        msg.style.color = 'var(--vermelho)';
+        msg.textContent = 'Não consegui salvar: ' + ((resp && resp.erro) || 'erro desconhecido') + '. (A ação salvarFeedback existe no Apps Script?)';
+      }
+    }, function (erro) {
+      btn.disabled = false; btn.textContent = 'Enviar feedback';
+      msg.style.color = 'var(--vermelho)';
+      msg.textContent = erro;
+    });
+  }
+
   function render() {
     if (modoAtual === 'patio') {
       renderPatio();
-    } else {
+    } else if (modoAtual === 'historico') {
       renderHistorico();
     }
   }
