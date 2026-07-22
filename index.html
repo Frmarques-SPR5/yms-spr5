@@ -197,6 +197,20 @@
     cursor: pointer;
   }
   .btn-salvar-comentario.salvo { background: var(--ok); }
+  .comentario-full {
+    margin-top: 8px;
+    background: rgba(37,99,235,0.10);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--azul);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .comentario-full .cf-label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-bottom:3px; font-weight:700; }
+  .comentario-full .cf-empty { color: var(--muted); font-style: italic; }
 
   .mobile-list { display: none; }
   .truck-card {
@@ -355,6 +369,7 @@
   })();
 
   var filtroAtual = TRANSP_TRAVADA || localStorage.getItem(FILTRO_STORAGE_KEY) || 'TODAS';
+  var IS_MELI = (TRANSP_TRAVADA === null || TRANSP_TRAVADA === '');
 
   function chamarWebApp(params, onResult, onErro) {
     if (!WEBAPP_URL || WEBAPP_URL.indexOf('COLE_AQUI') !== -1) {
@@ -552,6 +567,9 @@
     return (t || 'SEM TRANSPORTADORA').trim();
   }
 
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
   function renderFiltros(todos) {
     // Se travado via URL (aberto pelo hub): esconde a barra de chips.
     if (TRANSP_TRAVADA) {
@@ -788,10 +806,12 @@
         '<td>' + fmtHora(h.entrada) + '</td>' +
         '<td>' + fmtHora(h.saida) + '</td>' +
         '<td class="tempo">' + fmtTempo(h.tempoMinutos) + '</td>' +
-        '<td><div class="comentario-wrap">' +
-          '<input class="comentario-input" id="' + inputId + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso...">' +
-          '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputId + '">Salvar</button>' +
-        '</div></td>' +
+        (IS_MELI
+          ? '<td><div class="comentario-full"><span class="cf-label">Justificativa (motivo do atraso)</span>' + (h.comentario ? esc(h.comentario) : '<span class="cf-empty">Sem justificativa registrada</span>') + '</div></td>'
+          : '<td><div class="comentario-wrap">' +
+              '<input class="comentario-input" id="' + inputId + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso...">' +
+              '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputId + '">Salvar</button>' +
+            '</div></td>') +
         '</tr>';
     }).join('');
 
@@ -814,10 +834,12 @@
           '<div><div class="label">Saída</div><div>' + fmtHora(h.saida) + '</div></div>' +
         '</div>' +
         (seloAduanaM ? '<div style="margin-top:8px;">' + seloAduanaM + '</div>' : '') +
-        '<div class="comentario-wrap" style="margin-top:10px;">' +
-          '<input class="comentario-input" id="' + inputIdM + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso..." style="flex:1;">' +
-          '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputIdM + '">Salvar</button>' +
-        '</div>' +
+        (IS_MELI
+          ? '<div class="comentario-full" style="margin-top:10px;"><span class="cf-label">Justificativa (motivo do atraso)</span>' + (h.comentario ? esc(h.comentario) : '<span class="cf-empty">Sem justificativa registrada</span>') + '</div>'
+          : '<div class="comentario-wrap" style="margin-top:10px;">' +
+              '<input class="comentario-input" id="' + inputIdM + '" type="text" value="' + (h.comentario || '').replace(/"/g, '&quot;') + '" placeholder="Motivo do atraso..." style="flex:1;">' +
+              '<button class="btn-salvar-comentario" data-placa="' + h.placa + '" data-registrado="' + h.registradoEmISO + '" data-input="' + inputIdM + '">Salvar</button>' +
+            '</div>') +
       '</div>';
     }).join('');
     Array.prototype.forEach.call(document.querySelectorAll('.btn-salvar-comentario'), function (btn) {
