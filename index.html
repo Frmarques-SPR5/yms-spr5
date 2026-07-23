@@ -55,6 +55,10 @@
   tr.row-amarelo { background: rgba(242, 201, 76, 0.18); }
   tr.row-laranja { background: rgba(255, 153, 0, 0.20); }
   tr.row-vermelho { background: rgba(229, 72, 77, 0.25); }
+  tr.hist-verde { background: rgba(22,163,74,0.12); }
+  tr.hist-vermelho { background: rgba(229,72,77,0.14); }
+  .truck-card.hist-verde { background: rgba(22,163,74,0.12); }
+  .truck-card.hist-vermelho { background: rgba(229,72,77,0.14); }
   tr.row-compacta td.col-secundaria { opacity: 0.4; }
   .badge {
     display: inline-block;
@@ -798,7 +802,8 @@
     tbodyHist.innerHTML = filtrado.map(function (h, idx) {
       var inputId = 'coment_' + idx;
       var seloAduana = h.temAduana ? ' <span class="selo-aduana">🛃 Aduana</span>' : '';
-      return '<tr>' +
+      var passou30 = (typeof h.tempoMinutos === 'number') && h.tempoMinutos >= 30;
+      return '<tr class="' + (passou30 ? 'hist-vermelho' : 'hist-verde') + '">' +
         '<td><strong>' + h.placa + '</strong>' + seloAduana + '</td>' +
         '<td>' + h.vaga + '</td>' +
         '<td>' + h.tipo + '</td>' +
@@ -820,7 +825,7 @@
     mobileList.innerHTML = filtrado.map(function (h, idx) {
       var inputIdM = 'coment_m_' + idx;
       var passou30M = (typeof h.tempoMinutos === 'number') && h.tempoMinutos >= 30;
-      var tierM = passou30M ? 'tier-vermelho' : 'tier-ok';
+      var tierM = passou30M ? 'tier-vermelho hist-vermelho' : 'tier-ok hist-verde';
       var seloAduanaM = h.temAduana ? '<span class="selo-aduana">🛃 Aduana</span>' : '';
       return '<div class="truck-card ' + tierM + '">' +
         '<div class="top-row">' +
@@ -883,10 +888,15 @@
     });
   }
 
+  function usuarioEditandoComentario() {
+    var ae = document.activeElement;
+    return !!(ae && ae.classList && ae.classList.contains('comentario-input'));
+  }
   function render() {
     if (modoAtual === 'patio') {
       renderPatio();
     } else if (modoAtual === 'historico') {
+      if (usuarioEditandoComentario()) return;
       renderHistorico();
     }
   }
