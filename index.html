@@ -153,6 +153,66 @@
     .ondas-grid { grid-template-columns: 1fr 1fr; }
   }
 
+  /* ===== MODAL JUSTIFICATIVA DE ONDA ===== */
+  .modal-overlay-onda {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.6); z-index: 500;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-overlay-onda.open { display: flex; }
+  .modal-card-onda {
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 12px; padding: 22px; width: 100%;
+    max-width: 480px; display: flex; flex-direction: column; gap: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.4); max-height: 90vh; overflow-y: auto;
+  }
+  .modal-card-onda h3 { font-size: 16px; font-weight: 700; margin: 0; }
+  .modal-info-onda {
+    background: #0f172a; border-radius: 8px; padding: 12px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    font-size: 12px; border: 1px solid #334155;
+  }
+  .modal-info-onda .mi label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:2px; font-weight:700; }
+  .modal-info-onda .mi span { font-weight:600; }
+  .modal-label-onda { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .modal-textarea-onda {
+    width: 100%; background: #0f172a; border: 1.5px solid #334155;
+    border-radius: 6px; padding: 10px 12px; color: var(--text);
+    font-size: 13px; resize: vertical; min-height: 80px;
+    font-family: inherit; outline: none;
+  }
+  .modal-textarea-onda:focus { border-color: var(--azul); }
+  .modal-actions-onda { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-cancel-onda {
+    background: none; border: 1px solid #334155; border-radius: 6px;
+    padding: 8px 16px; color: var(--muted); font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .btn-save-onda {
+    background: var(--azul); color: #fff; border: none;
+    padding: 9px 22px; border-radius: 6px; font-size: 13px;
+    font-weight: 600; cursor: pointer;
+  }
+  .btn-save-onda.disabled { opacity: .5; pointer-events: none; }
+  .btn-just-onda {
+    background: transparent; color: var(--amarelo);
+    border: 1px solid var(--amarelo); padding: 3px 10px;
+    border-radius: 6px; font-size: 11px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn-just-onda:hover { background: rgba(242,201,76,.15); }
+  .tag-justificado {
+    font-size: 11px; color: var(--ok); font-weight: 700;
+  }
+  /* aba Ondas no painel */
+  .ondas-painel-section { margin-bottom: 24px; }
+  .ondas-painel-titulo { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+  .ofensor-table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 10px; overflow: hidden; font-size: 13px; }
+  .ofensor-table th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .03em; padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+  .ofensor-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .ofensor-table tr:last-child td { border-bottom: none; }
+  .badge-tipo-nao-chegou { background: rgba(229,72,77,.2); color: #f87171; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .badge-tipo-nao-saiu   { background: rgba(242,201,76,.2); color: #f2c94c; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .tab-btn {
     background: transparent;
@@ -340,6 +400,7 @@
 
 <div class="tabs" id="tabs">
   <button class="tab-btn active" data-modo="patio">No pátio</button>
+  <button class="tab-btn" data-modo="ondas">🌊 Ondas</button>
   <button class="tab-btn" data-modo="historico">Histórico de hoje</button>
   <button class="tab-btn" data-modo="feedback">💬 Feedback KN</button>
 </div>
@@ -422,6 +483,32 @@
   </div>
 </div>
 
+<!-- VIEW: ONDAS (painel detalhado) -->
+<div id="ondasPainelWrap" style="display:none; max-width:900px;">
+  <div class="ondas-painel-section">
+    <div class="ondas-painel-titulo">📊 Resumo das ondas</div>
+    <div id="ondasPainelResumo"></div>
+  </div>
+  <div class="ondas-painel-section">
+    <div class="ondas-painel-titulo">🚨 Ofensores — histórico de ocorrências</div>
+    <div id="ondasPainelOfensores"><div class="empty-state">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- MODAL: JUSTIFICATIVA DE ONDA -->
+<div class="modal-overlay-onda" id="modalOnda">
+  <div class="modal-card-onda">
+    <h3 id="modalOndaTitulo">Justificar ocorrência de onda</h3>
+    <div class="modal-info-onda" id="modalOndaInfo"></div>
+    <label class="modal-label-onda">Motivo *</label>
+    <textarea class="modal-textarea-onda" id="modalOndaMotivo" placeholder="Descreva o motivo da ocorrência..."></textarea>
+    <div class="modal-actions-onda">
+      <button class="btn-cancel-onda" onclick="fecharModalOnda()">Cancelar</button>
+      <button class="btn-save-onda" id="btnSaveOnda" onclick="salvarJustOnda()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="footer" id="footer"></div>
 
 <script>
@@ -438,37 +525,33 @@
   var historicoCarregado = false;
   var modoAtual = 'patio';
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
-  var aduanaPorPlaca = {};   // { PLACA: true } — marcações de aduana de hoje
-  var ondasDados = {};       // mapa onda→[placas] vindo do backend
+  var aduanaPorPlaca = {};
+  var ondasDados = {};
   var ondasCarregadas = false;
+  var ondasJustificativas = {}; // { "PLACA|ONDA|TIPO": true } — já justificadas nesta sessão
+  var ondasHistorico = [];      // cache do histórico de ondas
+  var ondaSelModal = null;      // onda selecionada para justificar
 
-  // ===== DEFINIÇÃO DAS ONDAS (horários fixos) =====
+  // ===== ONDAS: CONFIGURAÇÃO =====
   var ONDAS_CONFIG = [
     { num: '1', nome: '1ª onda', inicio: '08:45', fim: '09:15' },
     { num: '2', nome: '2ª onda', inicio: '09:15', fim: '09:45' },
     { num: '3', nome: '3ª onda', inicio: '09:45', fim: '10:15' },
     { num: '4', nome: '4ª onda', inicio: '10:15', fim: '10:45' }
   ];
-  var ALERTA_MINUTOS_ANTES = 15; // alerta 15min antes do fim
+  var ALERTA_MINUTOS_ANTES = 15;
 
-  // Converte "HH:MM" para minutos desde meia-noite
   function hhmm_para_min(s) {
     var p = String(s || '').split(':');
     return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
   }
-
-  // Retorna minutos desde meia-noite do instante atual
   function agora_min() {
-    var agora = new Date();
-    return agora.getHours() * 60 + agora.getMinutes() + agora.getSeconds() / 60;
+    var a = new Date();
+    return a.getHours() * 60 + a.getMinutes() + a.getSeconds() / 60;
   }
-
-  // Normaliza placa no frontend: remove "SDD-" e faz uppercase
   function normPlacaF(placa) {
     return String(placa || '').trim().toUpperCase().replace(/^SDD-/i, '');
   }
-
-  // Determina o estado de uma onda: 'futura', 'ativa', 'alerta', 'passada'
   function estadoDaOnda(onda, minAtual) {
     var ini = hhmm_para_min(onda.inicio);
     var fim = hhmm_para_min(onda.fim);
@@ -477,36 +560,53 @@
     if (minAtual >= fim - ALERTA_MINUTOS_ANTES) return 'alerta';
     return 'ativa';
   }
-
-  // Placas atualmente no pátio (caminhões carregando agora)
   function placasNoPatioAgora() {
     var set = {};
     caminhoes.forEach(function (c) { set[normPlacaF(c.placa)] = true; });
     return set;
   }
+  function jaJustificadaOnda(placa, onda, tipo) {
+    // chave combina placa+onda+tipo; também verifica no histórico carregado
+    var chave = placa + '|' + onda + '|' + tipo;
+    if (ondasJustificativas[chave]) return true;
+    return ondasHistorico.some(function(r){
+      return normPlacaF(r.placa) === placa &&
+             String(r.onda) === String(onda) &&
+             r.tipo_ocorrencia === tipo &&
+             (r.data || '').indexOf(new Date().toLocaleDateString('pt-BR').slice(0,10)) !== -1;
+    });
+  }
 
   function carregarOndas() {
     chamarWebApp({ action: 'getOndas' }, function (resp) {
       if (resp && !resp.erro) {
-        ondasDados = resp.ondas || {};
+        // Normaliza todas as placas ao carregar
+        var raw = resp.ondas || {};
+        ondasDados = {};
+        Object.keys(raw).forEach(function(k){
+          ondasDados[k] = (raw[k] || []).map(normPlacaF);
+        });
         ondasCarregadas = true;
         renderOndas();
+        renderOndasPainel();
       }
-    }, function () { /* falhou silenciosamente */ });
+    }, function () {});
   }
 
+  function carregarHistOndas(cb) {
+    chamarWebApp({ action: 'getHistoricoOndas' }, function (resp) {
+      ondasHistorico = resp.registros || [];
+      if (cb) cb();
+    }, function () { if (cb) cb(); });
+  }
+
+  // ===== RENDER ONDAS (bloco no pátio) =====
   function renderOndas() {
     var wrap = document.getElementById('ondasWrap');
     if (!ondasCarregadas) { wrap.style.display = 'none'; return; }
-
-    // Só mostra o bloco de ondas no período de interesse (08:30–11:00)
-    var min = agora_min();
-    var INICIO_EXIBICAO = hhmm_para_min('08:30');
-    var FIM_EXIBICAO    = hhmm_para_min('11:00');
-    if (min < INICIO_EXIBICAO || min > FIM_EXIBICAO) { wrap.style.display = 'none'; return; }
     wrap.style.display = 'block';
 
-    // Relógio
+    var min = agora_min();
     var agora = new Date();
     document.getElementById('ondasRelogio').textContent =
       '· ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -518,77 +618,226 @@
     ONDAS_CONFIG.forEach(function (onda) {
       var placas = ondasDados[onda.num] || [];
       var estado = estadoDaOnda(onda, min);
-      var ini = hhmm_para_min(onda.inicio);
       var fim = hhmm_para_min(onda.fim);
+      var minParaFim = fim - min;
 
       var carregando = placas.filter(function (p) { return !!noPatioAgora[p]; });
       var faltando   = placas.filter(function (p) { return !noPatioAgora[p]; });
-      var total      = placas.length;
-      var minParaFim = fim - min;
 
-      // Alertas para ondas ativas/em alerta
+      // Alertas para ondas ativas/alerta com rotas faltando
       if ((estado === 'ativa' || estado === 'alerta') && faltando.length > 0) {
-        var critico = estado === 'alerta';
         alertas.push({
-          critico: critico,
-          msg: '⚠️ ' + onda.nome + ': ' + faltando.length + ' rota' + (faltando.length > 1 ? 's' : '') +
-               ' ainda não entraram carregar' +
-               (critico ? ' · ❗ ' + Math.max(0, Math.round(minParaFim)) + 'min para fechar a onda!' : ''),
+          critico: estado === 'alerta',
+          msg: (estado === 'alerta' ? '🚨 ' : '⚠️ ') + onda.nome + ': ' +
+               faltando.length + ' rota' + (faltando.length > 1 ? 's' : '') +
+               ' não entraram carregar' +
+               (estado === 'alerta' ? ' · ' + Math.max(0, Math.round(minParaFim)) + 'min restantes!' : ''),
           placas: faltando
         });
       }
 
-      // Card da onda
       html += '<div class="onda-card onda-' + estado + '">';
-      html += '<div class="onda-header">';
-      html += '<span class="onda-nome">' + onda.nome + '</span>';
-      html += '<span class="onda-horario">' + onda.inicio + '–' + onda.fim + '</span>';
-      html += '</div>';
+      html += '<div class="onda-header"><span class="onda-nome">' + onda.nome + '</span>' +
+              '<span class="onda-horario">' + onda.inicio + '–' + onda.fim + '</span></div>';
 
-      if (total === 0) {
+      if (placas.length === 0) {
         html += '<div style="font-size:12px;color:var(--muted)">Sem rotas nesta onda</div>';
       } else {
-        html += '<div class="onda-kpis">';
-        html += '<div class="onda-kpi tot"><div class="n">' + total + '</div><div class="l">Total</div></div>';
-        html += '<div class="onda-kpi ok"><div class="n">' + carregando.length + '</div><div class="l">Carregando</div></div>';
-        html += '<div class="onda-kpi falt"><div class="n">' + faltando.length + '</div><div class="l">Faltam</div></div>';
-        html += '</div>';
+        html += '<div class="onda-kpis">' +
+          '<div class="onda-kpi tot"><div class="n">' + placas.length + '</div><div class="l">Total</div></div>' +
+          '<div class="onda-kpi ok"><div class="n">' + carregando.length + '</div><div class="l">No pátio</div></div>' +
+          '<div class="onda-kpi falt"><div class="n">' + faltando.length + '</div><div class="l">Faltam</div></div>' +
+          '</div>';
 
-        // Lista de placas com status
+        // Lista de placas com status + botão justificar se onda passada
         html += '<div class="onda-placas">';
         placas.forEach(function (p) {
-          var estaCarr = !!noPatioAgora[p];
-          var cls = estaCarr ? 'carregando' : (estado === 'passada' ? 'saiu' : 'faltando');
-          var icone = estaCarr ? '✅' : (estado === 'passada' ? '–' : '🔴');
-          html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p + '</span>';
+          var noPatioAg = !!noPatioAgora[p];
+          var cls, icone;
+          if (noPatioAg)            { cls = 'carregando'; icone = '✅'; }
+          else if (estado === 'passada') { cls = 'saiu'; icone = '–'; }
+          else                      { cls = 'faltando'; icone = '🔴'; }
+
+          html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p;
+
+          // Botão justificar: onda passada + não entrou
+          if (estado === 'passada' && !noPatioAg) {
+            if (jaJustificadaOnda(p, onda.num, 'nao_chegou')) {
+              html += ' <span class="tag-justificado">✓</span>';
+            } else {
+              html += ' <button class="btn-just-onda" onclick="abrirModalOnda(\'' + p + '\',\'' + onda.num + '\',\'' + onda.nome + '\',\'nao_chegou\')">Justif.</button>';
+            }
+          }
+          // Botão justificar: onda passada + estava no pátio mas ainda está (não saiu a tempo)
+          if (estado === 'passada' && noPatioAg) {
+            if (jaJustificadaOnda(p, onda.num, 'nao_saiu')) {
+              html += ' <span class="tag-justificado">✓ saiu tarde</span>';
+            } else {
+              html += ' <button class="btn-just-onda" onclick="abrirModalOnda(\'' + p + '\',\'' + onda.num + '\',\'' + onda.nome + '\',\'nao_saiu\')">Justif. saída</button>';
+            }
+          }
+          html += '</span>';
         });
         html += '</div>';
       }
 
-      // Para ondas ativas: tempo restante
       if (estado === 'ativa' || estado === 'alerta') {
-        var restMin = Math.max(0, Math.round(minParaFim));
-        html += '<div style="font-size:11px;color:var(--muted);margin-top:6px">';
-        html += (estado === 'alerta' ? '⚠️ ' : '⏱️ ') + restMin + 'min restantes';
-        html += '</div>';
+        var rest = Math.max(0, Math.round(minParaFim));
+        html += '<div style="font-size:11px;color:var(--muted);margin-top:6px">' +
+                (estado === 'alerta' ? '⚠️ ' : '⏱️ ') + rest + 'min restantes</div>';
       }
-
       html += '</div>';
     });
 
     document.getElementById('ondasGrid').innerHTML = html;
 
-    // Alertas
     var alertasEl = document.getElementById('ondasAlertas');
-    if (alertas.length) {
-      alertasEl.innerHTML = alertas.map(function (a) {
-        return '<div class="onda-alerta-box' + (a.critico ? ' critico' : '') + '">' +
-               '<span style="font-size:18px">' + (a.critico ? '🚨' : '⚠️') + '</span>' +
-               '<span>' + a.msg + '</span></div>';
-      }).join('');
-    } else {
-      alertasEl.innerHTML = '';
+    alertasEl.innerHTML = alertas.map(function (a) {
+      return '<div class="onda-alerta-box' + (a.critico ? ' critico' : '') + '">' +
+             '<span style="font-size:18px">' + (a.critico ? '🚨' : '⚠️') + '</span>' +
+             '<span>' + a.msg + '</span></div>';
+    }).join('');
+  }
+
+  // ===== MODAL DE JUSTIFICATIVA DE ONDA =====
+  function abrirModalOnda(placa, numOnda, nomeOnda, tipo) {
+    ondaSelModal = { placa: placa, onda: numOnda, nome: nomeOnda, tipo: tipo };
+    var tipoLabel = tipo === 'nao_chegou' ? 'Não entrou carregar no prazo' : 'Não saiu no prazo da onda';
+    document.getElementById('modalOndaTitulo').textContent = 'Justificar — ' + nomeOnda;
+    var onda = ONDAS_CONFIG.find(function(o){ return o.num === numOnda; }) || {};
+    document.getElementById('modalOndaInfo').innerHTML =
+      '<div class="mi"><label>Placa</label><span>' + placa + '</span></div>' +
+      '<div class="mi"><label>Onda</label><span>' + nomeOnda + ' (' + (onda.inicio||'') + '–' + (onda.fim||'') + ')</span></div>' +
+      '<div class="mi" style="grid-column:1/-1"><label>Ocorrência</label><span style="color:var(--amarelo)">' + tipoLabel + '</span></div>';
+    document.getElementById('modalOndaMotivo').value = '';
+    var btn = document.getElementById('btnSaveOnda');
+    btn.classList.remove('disabled'); btn.textContent = 'Salvar';
+    document.getElementById('modalOnda').classList.add('open');
+    setTimeout(function(){ document.getElementById('modalOndaMotivo').focus(); }, 100);
+  }
+
+  function fecharModalOnda() {
+    document.getElementById('modalOnda').classList.remove('open');
+    ondaSelModal = null;
+  }
+
+  function salvarJustOnda() {
+    var motivo = document.getElementById('modalOndaMotivo').value.trim();
+    if (!motivo) { alert('Informe o motivo.'); return; }
+    if (!ondaSelModal) return;
+    var btn = document.getElementById('btnSaveOnda');
+    btn.classList.add('disabled'); btn.textContent = 'Salvando...';
+    var sel = ondaSelModal;
+    chamarWebApp({
+      action: 'salvarJustificativaOnda',
+      placa: sel.placa, onda: sel.onda,
+      tipo_ocorrencia: sel.tipo === 'nao_chegou' ? 'Não chegou no prazo' : 'Não saiu no prazo',
+      transportadora: TRANSP_TRAVADA || 'MELI',
+      motivo: motivo,
+      dispatcher: TRANSP_TRAVADA || 'MELI'
+    }, function(resp) {
+      btn.classList.remove('disabled'); btn.textContent = 'Salvar';
+      if (resp && resp.ok) {
+        // Marca como justificada localmente
+        ondasJustificativas[sel.placa + '|' + sel.onda + '|' + sel.tipo] = true;
+        fecharModalOnda();
+        renderOndas();
+        // Atualiza histórico
+        carregarHistOndas(renderOndasPainel);
+      } else {
+        alert('Erro: ' + ((resp && resp.erro) || 'desconhecido'));
+      }
+    }, function(err) {
+      btn.classList.remove('disabled'); btn.textContent = 'Salvar';
+      alert('Erro de conexão: ' + err);
+    });
+  }
+
+  document.getElementById('modalOnda').addEventListener('click', function(ev){
+    if (ev.target === this) fecharModalOnda();
+  });
+  document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') fecharModalOnda(); });
+
+  // ===== PAINEL DE ONDAS (aba Ondas) =====
+  function renderOndasPainel() {
+    var resumoEl    = document.getElementById('ondasPainelResumo');
+    var ofensEl     = document.getElementById('ondasPainelOfensores');
+    if (!resumoEl) return;
+
+    // ── Resumo das ondas ──
+    var min = agora_min();
+    var noPatioAgora = placasNoPatioAgora();
+    var htmlResumo = '<div class="ondas-grid">';
+    ONDAS_CONFIG.forEach(function(onda) {
+      var placas = ondasDados[onda.num] || [];
+      var estado = estadoDaOnda(onda, min);
+      var carr = placas.filter(function(p){ return !!noPatioAgora[p]; });
+      var falt = placas.filter(function(p){ return !noPatioAgora[p]; });
+      htmlResumo += '<div class="onda-card onda-' + estado + '">' +
+        '<div class="onda-header"><span class="onda-nome">' + onda.nome + '</span>' +
+        '<span class="onda-horario">' + onda.inicio + '–' + onda.fim + '</span></div>' +
+        '<div class="onda-kpis">' +
+        '<div class="onda-kpi tot"><div class="n">' + placas.length + '</div><div class="l">Rotas</div></div>' +
+        '<div class="onda-kpi ok"><div class="n">' + carr.length + '</div><div class="l">No pátio</div></div>' +
+        '<div class="onda-kpi falt"><div class="n">' + falt.length + '</div><div class="l">Faltam</div></div>' +
+        '</div></div>';
+    });
+    htmlResumo += '</div>';
+    resumoEl.innerHTML = htmlResumo;
+
+    // ── Histórico de ofensores ──
+    if (!ondasHistorico.length) {
+      ofensEl.innerHTML = '<div class="empty-state">Nenhuma ocorrência registrada ainda hoje.</div>';
+      return;
     }
+
+    // Filtra por transportadora se travada
+    var lista = ondasHistorico;
+    if (TRANSP_TRAVADA) {
+      lista = lista.filter(function(r){ return (r.transportadora||'') === TRANSP_TRAVADA; });
+    }
+
+    // Ranking de placas ofensoras
+    var ranking = {};
+    lista.forEach(function(r){
+      var k = normPlacaF(r.placa);
+      if (!ranking[k]) ranking[k] = { placa:k, transp:r.transportadora||'—', total:0, tipos:[] };
+      ranking[k].total++;
+      ranking[k].tipos.push(r.tipo_ocorrencia);
+    });
+    var rankList = Object.values(ranking).sort(function(a,b){ return b.total - a.total; });
+
+    var htmlOf = '';
+
+    // Tabela ranking
+    htmlOf += '<div class="ondas-painel-titulo" style="margin-top:0">📋 Ranking de ocorrências</div>';
+    htmlOf += '<table class="ofensor-table" style="margin-bottom:20px"><thead><tr>' +
+      '<th>#</th><th>Placa</th><th>Transportadora</th><th>Ocorrências</th></tr></thead><tbody>';
+    rankList.forEach(function(r, i){
+      htmlOf += '<tr><td style="color:var(--muted)">' + (i+1) + '</td>' +
+        '<td><strong>' + r.placa + '</strong></td>' +
+        '<td>' + r.transp + '</td>' +
+        '<td><strong style="color:var(--vermelho)">' + r.total + '</strong></td></tr>';
+    });
+    htmlOf += '</tbody></table>';
+
+    // Lista detalhada
+    htmlOf += '<div class="ondas-painel-titulo">📜 Detalhes das ocorrências</div>';
+    htmlOf += '<table class="ofensor-table"><thead><tr>' +
+      '<th>Data/hora</th><th>Placa</th><th>Onda</th><th>Ocorrência</th><th>Motivo</th><th>Dispatcher</th></tr></thead><tbody>';
+    lista.forEach(function(r){
+      var badgeCls = r.tipo_ocorrencia.indexOf('chegou') !== -1 ? 'badge-tipo-nao-chegou' : 'badge-tipo-nao-saiu';
+      htmlOf += '<tr>' +
+        '<td style="white-space:nowrap;color:var(--muted);font-size:12px">' + r.data_hora + '</td>' +
+        '<td><strong>' + normPlacaF(r.placa) + '</strong></td>' +
+        '<td>' + r.onda + 'ª</td>' +
+        '<td><span class="' + badgeCls + '">' + r.tipo_ocorrencia + '</span></td>' +
+        '<td style="font-size:12px;max-width:200px">' + (r.motivo||'—') + '</td>' +
+        '<td style="color:var(--muted);font-size:12px">' + (r.dispatcher||'—') + '</td>' +
+        '</tr>';
+    });
+    htmlOf += '</tbody></table>';
+    ofensEl.innerHTML = htmlOf;
   }
 
   // ===== FILTRO TRAVADO VIA URL (quando aberto pelo hub) =====
@@ -845,18 +1094,19 @@
     Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-modo') === modo);
     });
-    document.getElementById('cardsPatio').style.display = modo === 'patio' ? 'grid' : 'none';
-    document.getElementById('tabelaPatio').style.display = modo === 'patio' ? '' : 'none';
-    document.getElementById('tabelaHistorico').style.display = modo === 'historico' ? '' : 'none';
+    document.getElementById('cardsPatio').style.display        = modo === 'patio' ? 'grid' : 'none';
+    document.getElementById('ondasWrap').style.display         = modo === 'patio' ? 'block' : 'none';
+    document.getElementById('tabelaPatio').style.display       = modo === 'patio' ? '' : 'none';
+    document.getElementById('tabelaHistorico').style.display   = modo === 'historico' ? '' : 'none';
+    document.getElementById('ondasPainelWrap').style.display   = modo === 'ondas' ? 'block' : 'none';
     var ehFeedback = (modo === 'feedback');
-    document.getElementById('feedbackWrap').style.display = ehFeedback ? 'block' : 'none';
-    document.getElementById('mobileList').style.display = ehFeedback ? 'none' : '';
+    document.getElementById('feedbackWrap').style.display      = ehFeedback ? 'block' : 'none';
+    document.getElementById('mobileList').style.display        = (ehFeedback || modo === 'ondas') ? 'none' : '';
     var _filtrosEl = document.getElementById('filtros');
-    if (_filtrosEl) _filtrosEl.style.display = ehFeedback ? 'none' : '';
+    if (_filtrosEl) _filtrosEl.style.display = (ehFeedback || modo === 'ondas') ? 'none' : '';
 
-    if (modo === 'historico' && !historicoCarregado) {
-      carregarHistorico();
-    }
+    if (modo === 'historico' && !historicoCarregado) carregarHistorico();
+    if (modo === 'ondas') { carregarHistOndas(renderOndasPainel); }
     render();
   }
 
@@ -1121,21 +1371,24 @@
   function render() {
     if (modoAtual === 'patio') {
       renderPatio();
-      renderOndas();   // atualiza ondas junto com o pátio
+      renderOndas();
     } else if (modoAtual === 'historico') {
       if (usuarioEditandoComentario()) return;
       renderHistorico();
+    } else if (modoAtual === 'ondas') {
+      renderOndasPainel();
     }
   }
 
   carregarPatio();
-  carregarOndas();   // carrega ondas na inicialização
+  carregarOndas();
+  carregarHistOndas(function(){});   // pré-carrega histórico de ondas
   setInterval(function () {
     carregarPatio();
-    carregarOndas(); // recarrega ondas a cada ciclo (dados podem mudar)
+    carregarOndas();
     if (modoAtual === 'historico') carregarHistorico();
   }, REFETCH_MS);
-  setInterval(function () { if (modoAtual === 'patio') render(); }, RETICK_MS);
+  setInterval(function () { if (modoAtual === 'patio' || modoAtual === 'ondas') render(); }, RETICK_MS);
 </script>
 
 </body>
