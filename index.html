@@ -212,6 +212,28 @@
   .ofensor-table tr:last-child td { border-bottom: none; }
   .badge-tipo-nao-chegou { background: rgba(229,72,77,.2); color: #f87171; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-tipo-nao-saiu   { background: rgba(242,201,76,.2); color: #f2c94c; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  /* ===== STATUS MANUAL DE ONDA ===== */
+  .onda-placa-item.status-saiu        { color: var(--muted); opacity: .55; text-decoration: line-through; }
+  .onda-placa-item.status-nao-comp    { color: var(--laranja); opacity: .6; }
+  .onda-concluidas-toggle {
+    font-size: 11px; color: var(--muted); cursor: pointer;
+    margin-top: 8px; user-select: none; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .onda-concluidas-toggle:hover { color: var(--text); }
+  .onda-concluidas-wrap { margin-top: 4px; }
+  .btn-marcar-saiu {
+    background: transparent; color: var(--ok);
+    border: 1px solid var(--ok); padding: 2px 8px;
+    border-radius: 6px; font-size: 11px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn-marcar-saiu:hover { background: rgba(22,163,74,.15); }
+  .btn-desfazer-saiu {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); padding: 2px 8px;
+    border-radius: 6px; font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .btn-desfazer-saiu:hover { color: var(--text); }
 
   /* ===== RESUMO POR TRANSPORTADORA NAS ONDAS ===== */
   .ondas-transp-resumo {
@@ -625,9 +647,13 @@
           var lista = raw[k] || [];
           ondasDadosRaw[k] = lista.map(function(item) {
             if (typeof item === 'object') {
-              return { placa: normPlacaF(item.placa), transp: String(item.transp || '').trim() };
+              return {
+                placa:  normPlacaF(item.placa),
+                transp: String(item.transp  || '').trim(),
+                status: String(item.status  || '').trim().toLowerCase()
+              };
             }
-            return { placa: normPlacaF(item), transp: '' };
+            return { placa: normPlacaF(item), transp: '', status: '' };
           });
         });
         ondasCarregadas = true;
@@ -669,7 +695,7 @@
           return true;
         });
       }
-      ondasDados[k] = lista.map(function(item) { return item.placa; });
+      ondasDados[k] = lista; // mantém objeto completo {placa, transp, status}
     });
 
     renderOndas();
@@ -681,6 +707,41 @@
       ondasHistorico = resp.registros || [];
       if (cb) cb();
     }, function () { if (cb) cb(); });
+  }
+
+  // ===== MARCAR SAÍDA MANUAL DE PLACA NA ONDA (só dispatcher MELI) =====
+  function marcarSaidaOnda(placa, onda, novoStatus, btn) {
+    if (!IS_MELI) return; // só MELI pode marcar
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    // Atualiza localmente de imediato (otimista)
+    Object.keys(ondasDadosRaw).forEach(function(k) {
+      (ondasDadosRaw[k] || []).forEach(function(item) {
+        if (item.placa === placa && k === String(onda)) item.status = novoStatus;
+      });
+    });
+    ondasAplicarFiltro();
+    // Persiste na planilha em background
+    chamarWebApp({
+      action: 'marcarStatusOnda',
+      placa:  placa,
+      onda:   String(onda),
+      status: novoStatus
+    }, function(resp) {
+      if (btn) { btn.disabled = false; }
+      if (!resp || !resp.ok) {
+        // Reverte se falhou
+        Object.keys(ondasDadosRaw).forEach(function(k) {
+          (ondasDadosRaw[k] || []).forEach(function(item) {
+            if (item.placa === placa && k === String(onda)) item.status = novoStatus === 'saiu' ? '' : 'saiu';
+          });
+        });
+        ondasAplicarFiltro();
+        mostrarErro('Não salvei o status: ' + ((resp && resp.erro) || 'erro desconhecido'));
+      }
+    }, function(err) {
+      if (btn) { btn.disabled = false; }
+      mostrarErro('Erro de conexão: ' + err);
+    });
   }
 
   // ===== RENDER ONDAS (bloco no pátio) =====
@@ -747,10 +808,10 @@
       var filtNorm = normTranspOnda(filtroAtual);
       ondasParaRender = {};
       Object.keys(ondasDadosRaw).forEach(function(k) {
-        var lista = (ondasDadosRaw[k] || []).filter(function(item) {
+        ondasParaRender[k] = (ondasDadosRaw[k] || []).filter(function(item) {
           return normTranspOnda(item.transp) === filtNorm;
         });
-        ondasParaRender[k] = lista.map(function(item) { return item.placa; });
+        // ondasParaRender[k] já é array de objetos {placa, transp, status}
       });
     }
 
@@ -763,10 +824,15 @@
       var fim = hhmm_para_min(onda.fim);
       var minParaFim = fim - min;
 
-      var carregando = placas.filter(function (p) { return !!noPatioAgora[p]; });
-      var faltando   = placas.filter(function (p) { return !noPatioAgora[p]; });
+      // placas agora é array de objetos {placa, transp, status}
+      var placasAtivas    = placas.filter(function(o) { return o.status !== 'saiu' && o.status !== 'nao_compareceu'; });
+      var placasConcluidas = placas.filter(function(o) { return o.status === 'saiu' || o.status === 'nao_compareceu'; });
 
-      // Alertas para ondas ativas/alerta com rotas faltando
+      // Entre as ativas: quem está no pátio e quem falta
+      var carregando = placasAtivas.filter(function(o) { return !!noPatioAgora[o.placa]; });
+      var faltando   = placasAtivas.filter(function(o) { return !noPatioAgora[o.placa]; });
+
+      // Alertas: só para faltantes ainda sem status manual
       if ((estado === 'ativa' || estado === 'alerta') && faltando.length > 0) {
         alertas.push({
           critico: estado === 'alerta',
@@ -785,27 +851,31 @@
         html += '<div style="font-size:12px;color:var(--muted)">Sem rotas nesta onda</div>';
       } else {
         html += '<div class="onda-kpis">' +
-          '<div class="onda-kpi tot"><div class="n">' + placas.length + '</div><div class="l">Total</div></div>' +
+          '<div class="onda-kpi tot"><div class="n">' + placasAtivas.length + '</div><div class="l">Pendentes</div></div>' +
           '<div class="onda-kpi ok"><div class="n">' + carregando.length + '</div><div class="l">No pátio</div></div>' +
           '<div class="onda-kpi falt"><div class="n">' + faltando.length + '</div><div class="l">Faltam</div></div>' +
           '</div>';
 
-        // Lista de placas com status + botão justificar se onda passada
+        // ── Placas ATIVAS (pendentes) ──
         html += '<div class="onda-placas">';
-        placas.forEach(function (p) {
-          var caminhao  = noPatioAgora[p];   // objeto completo ou undefined
+        placasAtivas.forEach(function(obj) {
+          var p = obj.placa;
+          var caminhao  = noPatioAgora[p];
           var noPatioAg = !!caminhao;
           var cls, icone;
           if (noPatioAg)                 { cls = 'carregando'; icone = '✅'; }
-          else if (estado === 'passada') { cls = 'saiu';       icone = '–'; }
           else                          { cls = 'faltando';    icone = '🔴'; }
 
-          // Vaga: mostra quando o caminhão está no pátio
           var vagaTag = (noPatioAg && caminhao.vaga)
             ? ' <span style="font-size:10px;background:rgba(52,131,250,.18);color:#60a5fa;padding:1px 5px;border-radius:4px;font-weight:700">Vaga ' + caminhao.vaga + '</span>'
             : '';
 
           html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p + vagaTag;
+
+          // Botão "Saiu ✓" — só MELI e onda ativa/alerta ou passada
+          if (IS_MELI && (estado === 'ativa' || estado === 'alerta' || estado === 'passada')) {
+            html += ' <button class="btn-marcar-saiu" onclick="marcarSaidaOnda(\'' + p + '\',\'' + onda.num + '\',\'saiu\',this)">Saiu ✓</button>';
+          }
 
           // Botão justificar: onda passada + não entrou
           if (estado === 'passada' && !noPatioAg) {
@@ -815,7 +885,7 @@
               html += ' <button class="btn-just-onda" onclick="abrirModalOnda(\'' + p + '\',\'' + onda.num + '\',\'' + onda.nome + '\',\'nao_chegou\')">Justif.</button>';
             }
           }
-          // Botão justificar: onda passada + estava no pátio mas ainda está (não saiu a tempo)
+          // Botão justificar: onda passada + ainda no pátio (não saiu a tempo)
           if (estado === 'passada' && noPatioAg) {
             if (jaJustificadaOnda(p, onda.num, 'nao_saiu')) {
               html += ' <span class="tag-justificado">✓ saiu tarde</span>';
@@ -826,6 +896,26 @@
           html += '</span>';
         });
         html += '</div>';
+
+        // ── Placas CONCLUÍDAS (esmaecidas / colapsadas) ──
+        if (placasConcluidas.length > 0) {
+          var colId = 'concl_' + onda.num;
+          html += '<details class="onda-concluidas-wrap" id="' + colId + '">' +
+            '<summary class="ondas-concluidas-toggle">▾ ' + placasConcluidas.length + ' concluída' + (placasConcluidas.length > 1 ? 's' : '') + '</summary>' +
+            '<div class="onda-placas" style="margin-top:6px">';
+          placasConcluidas.forEach(function(obj) {
+            var p = obj.placa;
+            var cls = obj.status === 'saiu' ? 'status-saiu' : 'status-nao-comp';
+            var icone = obj.status === 'saiu' ? '✓' : '–';
+            html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p;
+            // Botão desfazer (só MELI)
+            if (IS_MELI) {
+              html += ' <button class="btn-desfazer-saiu" onclick="marcarSaidaOnda(\'' + p + '\',\'' + onda.num + '\',\'\',this)" title="Desfazer">↩</button>';
+            }
+            html += '</span>';
+          });
+          html += '</div></details>';
+        }
       }
 
       if (estado === 'ativa' || estado === 'alerta') {
@@ -918,13 +1008,15 @@
     ONDAS_CONFIG.forEach(function(onda) {
       var placas = ondasDados[onda.num] || [];
       var estado = estadoDaOnda(onda, min);
-      var carr = placas.filter(function(p){ return !!noPatioAgora[p]; });
-      var falt = placas.filter(function(p){ return !noPatioAgora[p]; });
+      // placas é array de objetos {placa, transp, status}
+      var placasAtPainel = placas.filter(function(o){ return o.status !== 'saiu' && o.status !== 'nao_compareceu'; });
+      var carr = placasAtPainel.filter(function(o){ return !!noPatioAgora[o.placa]; });
+      var falt = placasAtPainel.filter(function(o){ return !noPatioAgora[o.placa]; });
       htmlResumo += '<div class="onda-card onda-' + estado + '">' +
         '<div class="onda-header"><span class="onda-nome">' + onda.nome + '</span>' +
         '<span class="onda-horario">' + onda.inicio + '–' + onda.fim + '</span></div>' +
         '<div class="onda-kpis">' +
-        '<div class="onda-kpi tot"><div class="n">' + placas.length + '</div><div class="l">Rotas</div></div>' +
+        '<div class="onda-kpi tot"><div class="n">' + placasAtPainel.length + '</div><div class="l">Pendentes</div></div>' +
         '<div class="onda-kpi ok"><div class="n">' + carr.length + '</div><div class="l">No pátio</div></div>' +
         '<div class="onda-kpi falt"><div class="n">' + falt.length + '</div><div class="l">Faltam</div></div>' +
         '</div></div>';
