@@ -586,18 +586,17 @@
       .trim().replace(/\s+/g, ' ').toUpperCase();
   }
 
+  var ondasDebugIdx = null; // índices detectados pelo backend para diagnóstico
+
   function carregarOndas() {
     chamarWebApp({ action: 'getOndas' }, function (resp) {
       if (resp && !resp.erro) {
         var raw = resp.ondas || {};
-        // Guarda TODAS as placas de cada onda (sem filtrar aqui).
-        // O filtro por transportadora é feito em ondasFiltrarPorTransp()
-        // na hora de renderizar, usando os dados já disponíveis.
+        ondasDebugIdx = resp._idx || null; // índices detectados (para debug)
         ondasDadosRaw = {};
         Object.keys(raw).forEach(function(k) {
           var lista = raw[k] || [];
           ondasDadosRaw[k] = lista.map(function(item) {
-            // suporta formato {placa, transp} (novo) ou string (antigo)
             if (typeof item === 'object') {
               return { placa: normPlacaF(item.placa), transp: String(item.transp || '').trim() };
             }
@@ -675,8 +674,9 @@
     var totalFilt = Object.keys(ondasDados).reduce(function(a,k){ return a + (ondasDados[k]||[]).length; }, 0);
     var loginNormDbg = (!IS_MELI && TRANSP_TRAVADA) ? normTranspOnda(TRANSP_TRAVADA) : '(MELI/null)';
     var amostra = (ondasDadosRaw['1']||[]).slice(0,2).map(function(i){ return i.placa+'|'+i.transp+'→'+normTranspOnda(i.transp); }).join(', ');
+    var idxDbg = ondasDebugIdx ? 'idx[placa='+ondasDebugIdx.placa+',onda='+ondasDebugIdx.onda+',transp='+ondasDebugIdx.transp+']' : 'idx=?';
     document.getElementById('ondasRelogio').textContent +=
-      ' | RAW:'+totalRaw+' FILT:'+totalFilt+' LOGIN:"'+loginNormDbg+'" AMOSTRA:['+amostra+']';
+      ' | RAW:'+totalRaw+' FILT:'+totalFilt+' LOGIN:"'+loginNormDbg+'" '+idxDbg+' AMOSTRA:['+amostra+']';
     // ──────────────────────────────────────────────────────
 
     var noPatioAgora = placasNoPatioAgora();
