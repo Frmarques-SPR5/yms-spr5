@@ -213,6 +213,32 @@
   .badge-tipo-nao-chegou { background: rgba(229,72,77,.2); color: #f87171; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-tipo-nao-saiu   { background: rgba(242,201,76,.2); color: #f2c94c; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
 
+  /* ===== RESUMO POR TRANSPORTADORA NAS ONDAS ===== */
+  .ondas-transp-resumo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .ondas-transp-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .ondas-transp-card:hover { border-color: var(--azul); }
+  .ondas-transp-card.ativa { border-color: var(--azul); background: rgba(37,99,235,.12); }
+  .ondas-transp-nome { font-size: 12px; font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ondas-transp-kpis { display: flex; gap: 10px; }
+  .ondas-transp-kpi  { text-align: center; }
+  .ondas-transp-kpi .n { font-size: 18px; font-weight: 800; line-height: 1; }
+  .ondas-transp-kpi .l { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .ondas-transp-kpi.ok   .n { color: var(--ok); }
+  .ondas-transp-kpi.falt .n { color: var(--vermelho); }
+  .ondas-transp-kpi.tot  .n { color: #fff; }
+
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .tab-btn {
     background: transparent;
@@ -409,6 +435,7 @@
 
 <div class="ondas-wrap" id="ondasWrap" style="display:none">
   <div class="ondas-titulo">🌊 Ondas de carregamento <span id="ondasRelogio" style="font-size:13px;font-weight:500;color:var(--muted)"></span></div>
+  <div id="ondasTranspResumo" style="display:none"></div>
   <div class="ondas-alertas" id="ondasAlertas"></div>
   <div class="ondas-grid" id="ondasGrid"></div>
 </div>
@@ -667,14 +694,71 @@
     document.getElementById('ondasRelogio').textContent =
       '· ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-
-
     var noPatioAgora = placasNoPatioAgora();
+
+    // ── Resumo por transportadora (só no modo MELI/TODAS sem filtro de URL) ──
+    var transpResumoEl = document.getElementById('ondasTranspResumo');
+    var mostrarResumo = IS_MELI && !TRANSP_TRAVADA;
+    if (mostrarResumo) {
+      // Agrega: para cada transportadora, conta total e carregando em todas as ondas
+      var porTransp = {};
+      Object.keys(ondasDadosRaw).forEach(function(k) {
+        (ondasDadosRaw[k] || []).forEach(function(item) {
+          var t = item.transp || 'Sem transp.';
+          if (!porTransp[t]) porTransp[t] = { total: 0, noPatioCount: 0 };
+          porTransp[t].total++;
+          if (noPatioAgora[item.placa]) porTransp[t].noPatioCount++;
+        });
+      });
+      var transpKeys = Object.keys(porTransp).sort();
+      var htmlResumo = '<div class="ondas-transp-resumo">';
+      // card "Todas"
+      var totGeral = 0, patioGeral = 0;
+      transpKeys.forEach(function(t){ totGeral += porTransp[t].total; patioGeral += porTransp[t].noPatioCount; });
+      htmlResumo += '<div class="ondas-transp-card' + (filtroAtual === 'TODAS' ? ' ativa' : '') + '" onclick="filtrarOndasPorTransp(\'TODAS\')">' +
+        '<div class="ondas-transp-nome">Todas</div>' +
+        '<div class="ondas-transp-kpis">' +
+        '<div class="ondas-transp-kpi tot"><div class="n">' + totGeral + '</div><div class="l">Total</div></div>' +
+        '<div class="ondas-transp-kpi ok"><div class="n">' + patioGeral + '</div><div class="l">No pátio</div></div>' +
+        '<div class="ondas-transp-kpi falt"><div class="n">' + (totGeral - patioGeral) + '</div><div class="l">Faltam</div></div>' +
+        '</div></div>';
+      transpKeys.forEach(function(t) {
+        var d = porTransp[t];
+        var ativa = filtroAtual === t ? ' ativa' : '';
+        htmlResumo += '<div class="ondas-transp-card' + ativa + '" onclick="filtrarOndasPorTransp(\'' + t.replace(/'/g, "\\'") + '\')">' +
+          '<div class="ondas-transp-nome" title="' + t + '">' + t + '</div>' +
+          '<div class="ondas-transp-kpis">' +
+          '<div class="ondas-transp-kpi tot"><div class="n">' + d.total + '</div><div class="l">Total</div></div>' +
+          '<div class="ondas-transp-kpi ok"><div class="n">' + d.noPatioCount + '</div><div class="l">No pátio</div></div>' +
+          '<div class="ondas-transp-kpi falt"><div class="n">' + (d.total - d.noPatioCount) + '</div><div class="l">Faltam</div></div>' +
+          '</div></div>';
+      });
+      htmlResumo += '</div>';
+      transpResumoEl.innerHTML = htmlResumo;
+      transpResumoEl.style.display = 'block';
+    } else {
+      transpResumoEl.style.display = 'none';
+    }
+
+    // ── Filtra placas pelo chip ativo ──
+    // Se filtroAtual é uma transportadora específica, filtra ondasDados pelo transp do raw
+    var ondasParaRender = ondasDados;
+    if (filtroAtual && filtroAtual !== 'TODAS' && IS_MELI) {
+      var filtNorm = normTranspOnda(filtroAtual);
+      ondasParaRender = {};
+      Object.keys(ondasDadosRaw).forEach(function(k) {
+        var lista = (ondasDadosRaw[k] || []).filter(function(item) {
+          return normTranspOnda(item.transp) === filtNorm;
+        });
+        ondasParaRender[k] = lista.map(function(item) { return item.placa; });
+      });
+    }
+
     var alertas = [];
     var html = '';
 
     ONDAS_CONFIG.forEach(function (onda) {
-      var placas = ondasDados[onda.num] || [];
+      var placas = ondasParaRender[onda.num] || [];
       var estado = estadoDaOnda(onda, min);
       var fim = hhmm_para_min(onda.fim);
       var minParaFim = fim - min;
@@ -689,8 +773,7 @@
           msg: (estado === 'alerta' ? '🚨 ' : '⚠️ ') + onda.nome + ': ' +
                faltando.length + ' rota' + (faltando.length > 1 ? 's' : '') +
                ' não entraram carregar' +
-               (estado === 'alerta' ? ' · ' + Math.max(0, Math.round(minParaFim)) + 'min restantes!' : ''),
-          placas: faltando
+               (estado === 'alerta' ? ' · ' + Math.max(0, Math.round(minParaFim)) + 'min restantes!' : '')
         });
       }
 
@@ -1153,6 +1236,12 @@
         render();
       });
     });
+  }
+
+  function filtrarOndasPorTransp(transp) {
+    filtroAtual = transp;
+    localStorage.setItem(FILTRO_STORAGE_KEY, filtroAtual);
+    render();
   }
 
   function trocarModo(modo) {
