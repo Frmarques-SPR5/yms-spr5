@@ -741,9 +741,9 @@
     }
 
     // ── Filtra placas pelo chip ativo ──
-    // Se filtroAtual é uma transportadora específica, filtra ondasDados pelo transp do raw
-    var ondasParaRender = ondasDados;
-    if (filtroAtual && filtroAtual !== 'TODAS' && IS_MELI) {
+    // filtroAtual pode vir do chip do pátio (qualquer login) ou do card de transp (MELI)
+    var ondasParaRender = ondasDados; // já filtrado por transp_travada no ondasAplicarFiltro
+    if (filtroAtual && filtroAtual !== 'TODAS') {
       var filtNorm = normTranspOnda(filtroAtual);
       ondasParaRender = {};
       Object.keys(ondasDadosRaw).forEach(function(k) {
