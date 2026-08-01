@@ -527,6 +527,7 @@
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
   var aduanaPorPlaca = {};
   var ondasDados = {};
+  var ondasDadosRaw = {};
   var ondasCarregadas = false;
   var ondasJustificativas = {}; // { "PLACA|ONDA|TIPO": true } — já justificadas nesta sessão
   var ondasHistorico = [];      // cache do histórico de ondas
@@ -589,34 +590,64 @@
     chamarWebApp({ action: 'getOndas' }, function (resp) {
       if (resp && !resp.erro) {
         var raw = resp.ondas || {};
-        ondasDados = {};
-
-        // loginNorm: transportadora do login normalizada (sem acento, uppercase)
-        var loginNorm = (!IS_MELI && TRANSP_TRAVADA)
-          ? normTranspOnda(TRANSP_TRAVADA)
-          : null;
-
+        // Guarda TODAS as placas de cada onda (sem filtrar aqui).
+        // O filtro por transportadora é feito em ondasFiltrarPorTransp()
+        // na hora de renderizar, usando os dados já disponíveis.
+        ondasDadosRaw = {};
         Object.keys(raw).forEach(function(k) {
           var lista = raw[k] || [];
-
-          if (loginNorm) {
-            lista = lista.filter(function(item) {
-              // suporta tanto formato novo {placa, transp} quanto string (Code.gs antigo)
-              var transpItem = typeof item === 'object' ? (item.transp || '') : '';
-              return normTranspOnda(transpItem) === loginNorm;
-            });
-          }
-
-          ondasDados[k] = lista.map(function(item) {
-            return normPlacaF(typeof item === 'object' ? item.placa : item);
+          ondasDadosRaw[k] = lista.map(function(item) {
+            // suporta formato {placa, transp} (novo) ou string (antigo)
+            if (typeof item === 'object') {
+              return { placa: normPlacaF(item.placa), transp: String(item.transp || '').trim() };
+            }
+            return { placa: normPlacaF(item), transp: '' };
           });
         });
-
         ondasCarregadas = true;
-        renderOndas();
-        renderOndasPainel();
+        ondasAplicarFiltro();
       }
     }, function () {});
+  }
+
+  // Filtra ondasDadosRaw pela transportadora do login e popula ondasDados.
+  // Estratégia dupla:
+  //   1) Se item tem transp preenchido (backend novo) → compara direto.
+  //   2) Se transp vazio (backend antigo) → verifica se a placa está nos
+  //      dados do pátio com a transportadora correta OU aceita sem filtro.
+  function ondasAplicarFiltro() {
+    var loginNorm = (!IS_MELI && TRANSP_TRAVADA) ? normTranspOnda(TRANSP_TRAVADA) : null;
+
+    // Mapa de placas conhecidas do pátio com transportadora
+    var placaTranspPatio = {};
+    caminhoes.forEach(function(c) {
+      placaTranspPatio[normPlacaF(c.placa)] = normTranspOnda(c.transportadora || '');
+    });
+
+    ondasDados = {};
+    Object.keys(ondasDadosRaw).forEach(function(k) {
+      var lista = ondasDadosRaw[k] || [];
+      if (loginNorm) {
+        lista = lista.filter(function(item) {
+          // Estratégia 1: backend novo tem transp — usa direto
+          if (item.transp) {
+            return normTranspOnda(item.transp) === loginNorm;
+          }
+          // Estratégia 2: backend antigo (transp vazio) — cruza com dados do pátio
+          var transpPatio = placaTranspPatio[item.placa];
+          if (transpPatio) {
+            return transpPatio === loginNorm;
+          }
+          // Estratégia 3: placa não está no pátio e não tem transp → não filtra
+          // (mostra tudo quando não tem como saber — melhor que não mostrar nada)
+          return true;
+        });
+      }
+      ondasDados[k] = lista.map(function(item) { return item.placa; });
+    });
+
+    renderOndas();
+    renderOndasPainel();
   }
 
   function carregarHistOndas(cb) {
@@ -937,6 +968,8 @@
         });
         document.getElementById('subtitle').textContent =
           'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
+        // Re-aplica filtro de ondas sempre que pátio atualiza (caminhoes muda)
+        if (ondasCarregadas) ondasAplicarFiltro();
         carregarAduana(render);
       } catch (err) {
         mostrarErro('Erro lendo os dados: ' + err.message);
