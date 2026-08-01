@@ -562,7 +562,9 @@
   }
   function placasNoPatioAgora() {
     var set = {};
-    caminhoes.forEach(function (c) { set[normPlacaF(c.placa)] = true; });
+    caminhoes.forEach(function (c) {
+      set[normPlacaF(c.placa)] = c; // guarda o objeto completo (tem .vaga)
+    });
     return set;
   }
   function jaJustificadaOnda(placa, onda, tipo) {
@@ -580,11 +582,21 @@
   function carregarOndas() {
     chamarWebApp({ action: 'getOndas' }, function (resp) {
       if (resp && !resp.erro) {
-        // Normaliza todas as placas ao carregar
         var raw = resp.ondas || {};
         ondasDados = {};
-        Object.keys(raw).forEach(function(k){
-          ondasDados[k] = (raw[k] || []).map(normPlacaF);
+        Object.keys(raw).forEach(function(k) {
+          var lista = raw[k] || [];
+          // Filtra por transportadora do login (exceto MELI que vê tudo)
+          if (!IS_MELI && TRANSP_TRAVADA) {
+            var loginNorm = String(TRANSP_TRAVADA).trim().toUpperCase();
+            lista = lista.filter(function(item) {
+              var t = String(typeof item === 'object' ? (item.transp||'') : '').trim().toUpperCase();
+              return t === loginNorm;
+            });
+          }
+          ondasDados[k] = lista.map(function(item) {
+            return normPlacaF(typeof item === 'object' ? item.placa : item);
+          });
         });
         ondasCarregadas = true;
         renderOndas();
@@ -652,13 +664,19 @@
         // Lista de placas com status + botão justificar se onda passada
         html += '<div class="onda-placas">';
         placas.forEach(function (p) {
-          var noPatioAg = !!noPatioAgora[p];
+          var caminhao  = noPatioAgora[p];   // objeto completo ou undefined
+          var noPatioAg = !!caminhao;
           var cls, icone;
-          if (noPatioAg)            { cls = 'carregando'; icone = '✅'; }
-          else if (estado === 'passada') { cls = 'saiu'; icone = '–'; }
-          else                      { cls = 'faltando'; icone = '🔴'; }
+          if (noPatioAg)                 { cls = 'carregando'; icone = '✅'; }
+          else if (estado === 'passada') { cls = 'saiu';       icone = '–'; }
+          else                          { cls = 'faltando';    icone = '🔴'; }
 
-          html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p;
+          // Vaga: mostra quando o caminhão está no pátio
+          var vagaTag = (noPatioAg && caminhao.vaga)
+            ? ' <span style="font-size:10px;background:rgba(52,131,250,.18);color:#60a5fa;padding:1px 5px;border-radius:4px;font-weight:700">Vaga ' + caminhao.vaga + '</span>'
+            : '';
+
+          html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p + vagaTag;
 
           // Botão justificar: onda passada + não entrou
           if (estado === 'passada' && !noPatioAg) {
