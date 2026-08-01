@@ -579,25 +579,39 @@
     });
   }
 
+  // Remove acentos e normaliza para comparação robusta de transportadora
+  function normTranspOnda(t) {
+    return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .trim().replace(/\s+/g, ' ').toUpperCase();
+  }
+
   function carregarOndas() {
     chamarWebApp({ action: 'getOndas' }, function (resp) {
       if (resp && !resp.erro) {
         var raw = resp.ondas || {};
         ondasDados = {};
+
+        // loginNorm: transportadora do login normalizada (sem acento, uppercase)
+        var loginNorm = (!IS_MELI && TRANSP_TRAVADA)
+          ? normTranspOnda(TRANSP_TRAVADA)
+          : null;
+
         Object.keys(raw).forEach(function(k) {
           var lista = raw[k] || [];
-          // Filtra por transportadora do login (exceto MELI que vê tudo)
-          if (!IS_MELI && TRANSP_TRAVADA) {
-            var loginNorm = String(TRANSP_TRAVADA).trim().toUpperCase();
+
+          if (loginNorm) {
             lista = lista.filter(function(item) {
-              var t = String(typeof item === 'object' ? (item.transp||'') : '').trim().toUpperCase();
-              return t === loginNorm;
+              // suporta tanto formato novo {placa, transp} quanto string (Code.gs antigo)
+              var transpItem = typeof item === 'object' ? (item.transp || '') : '';
+              return normTranspOnda(transpItem) === loginNorm;
             });
           }
+
           ondasDados[k] = lista.map(function(item) {
             return normPlacaF(typeof item === 'object' ? item.placa : item);
           });
         });
+
         ondasCarregadas = true;
         renderOndas();
         renderOndasPainel();
