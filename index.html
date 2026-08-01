@@ -667,22 +667,7 @@
     document.getElementById('ondasRelogio').textContent =
       '· ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    // ── DIAGNÓSTICO TEMPORÁRIO ─────────────────────────────
-    // Mostra o que chegou do backend e o que o filtro calculou.
-    // Remover depois que o problema for identificado.
-    var totalRaw = Object.keys(ondasDadosRaw).reduce(function(a,k){ return a + (ondasDadosRaw[k]||[]).length; }, 0);
-    var totalFilt = Object.keys(ondasDados).reduce(function(a,k){ return a + (ondasDados[k]||[]).length; }, 0);
-    var loginNormDbg = (!IS_MELI && TRANSP_TRAVADA) ? normTranspOnda(TRANSP_TRAVADA) : '(MELI/null)';
-    var idxDbg = ondasDebugIdx ? 'idx[placa='+ondasDebugIdx.placa+',onda='+ondasDebugIdx.onda+',transp='+ondasDebugIdx.transp+']' : 'idx=?';
-    // Mostra valores únicos de transp encontrados nas ondas
-    var transpUnicos = {};
-    Object.keys(ondasDadosRaw).forEach(function(k){
-      (ondasDadosRaw[k]||[]).forEach(function(i){ transpUnicos[i.transp] = true; });
-    });
-    var amostra = Object.keys(transpUnicos).join(' | ');
-    document.getElementById('ondasRelogio').textContent +=
-      ' | RAW:'+totalRaw+' FILT:'+totalFilt+' LOGIN:"'+loginNormDbg+'" '+idxDbg+' TRANSP_ÚNICOS:['+amostra+']';
-    // ──────────────────────────────────────────────────────
+
 
     var noPatioAgora = placasNoPatioAgora();
     var alertas = [];
