@@ -84,6 +84,75 @@
   }
   .footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
 
+  /* ===== ONDAS DE CARREGAMENTO ===== */
+  .ondas-wrap {
+    margin-bottom: 22px;
+  }
+  .ondas-titulo {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ondas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .onda-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .onda-card.onda-futura  { border-left-color: var(--azul); }
+  .onda-card.onda-ativa   { border-left-color: var(--ok); }
+  .onda-card.onda-alerta  { border-left-color: var(--amarelo); animation: pisca-borda .9s ease-in-out infinite alternate; }
+  .onda-card.onda-passada { border-left-color: var(--border); opacity: .65; }
+  @keyframes pisca-borda {
+    from { border-left-color: var(--amarelo); }
+    to   { border-left-color: var(--laranja); }
+  }
+  .onda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .onda-nome   { font-weight: 700; font-size: 14px; }
+  .onda-horario { font-size: 11px; color: var(--muted); }
+  .onda-kpis   { display: flex; gap: 16px; margin: 6px 0; }
+  .onda-kpi    { text-align: center; }
+  .onda-kpi .n { font-size: 22px; font-weight: 800; line-height: 1; }
+  .onda-kpi .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .onda-kpi.ok   .n { color: var(--ok); }
+  .onda-kpi.falt .n { color: var(--vermelho); }
+  .onda-kpi.tot  .n { color: #fff; }
+  .onda-placas { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.7; }
+  .onda-placa-item { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; white-space: nowrap; }
+  .onda-placa-item.carregando { color: var(--ok); font-weight: 700; }
+  .onda-placa-item.faltando   { color: var(--vermelho); }
+  .onda-placa-item.saiu       { color: var(--muted); text-decoration: line-through; }
+  .ondas-alertas { display: flex; flex-direction: column; gap: 8px; }
+  .onda-alerta-box {
+    background: rgba(242,201,76,.13);
+    border: 1px solid var(--amarelo);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: pisca-bg .8s ease-in-out infinite alternate;
+  }
+  @keyframes pisca-bg {
+    from { background: rgba(242,201,76,.08); }
+    to   { background: rgba(242,201,76,.22); }
+  }
+  .onda-alerta-box.critico { border-color: var(--vermelho); background: rgba(229,72,77,.13); }
+  @media (max-width: 720px) {
+    .ondas-grid { grid-template-columns: 1fr 1fr; }
+  }
+
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .tab-btn {
     background: transparent;
@@ -277,6 +346,12 @@
 
 <div class="filtros" id="filtros"></div>
 
+<div class="ondas-wrap" id="ondasWrap" style="display:none">
+  <div class="ondas-titulo">🌊 Ondas de carregamento <span id="ondasRelogio" style="font-size:13px;font-weight:500;color:var(--muted)"></span></div>
+  <div class="ondas-alertas" id="ondasAlertas"></div>
+  <div class="ondas-grid" id="ondasGrid"></div>
+</div>
+
 <div class="cards" id="cardsPatio">
   <div class="card total"><div class="num" id="cardTotal">–</div><div class="label">No pátio</div></div>
   <div class="card ok"><div class="num" id="cardOk">–</div><div class="label">Normal (&lt;15min)</div></div>
@@ -364,6 +439,157 @@
   var modoAtual = 'patio';
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
   var aduanaPorPlaca = {};   // { PLACA: true } — marcações de aduana de hoje
+  var ondasDados = {};       // mapa onda→[placas] vindo do backend
+  var ondasCarregadas = false;
+
+  // ===== DEFINIÇÃO DAS ONDAS (horários fixos) =====
+  var ONDAS_CONFIG = [
+    { num: '1', nome: '1ª onda', inicio: '08:45', fim: '09:15' },
+    { num: '2', nome: '2ª onda', inicio: '09:15', fim: '09:45' },
+    { num: '3', nome: '3ª onda', inicio: '09:45', fim: '10:15' },
+    { num: '4', nome: '4ª onda', inicio: '10:15', fim: '10:45' }
+  ];
+  var ALERTA_MINUTOS_ANTES = 15; // alerta 15min antes do fim
+
+  // Converte "HH:MM" para minutos desde meia-noite
+  function hhmm_para_min(s) {
+    var p = String(s || '').split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
+
+  // Retorna minutos desde meia-noite do instante atual
+  function agora_min() {
+    var agora = new Date();
+    return agora.getHours() * 60 + agora.getMinutes() + agora.getSeconds() / 60;
+  }
+
+  // Normaliza placa no frontend: remove "SDD-" e faz uppercase
+  function normPlacaF(placa) {
+    return String(placa || '').trim().toUpperCase().replace(/^SDD-/i, '');
+  }
+
+  // Determina o estado de uma onda: 'futura', 'ativa', 'alerta', 'passada'
+  function estadoDaOnda(onda, minAtual) {
+    var ini = hhmm_para_min(onda.inicio);
+    var fim = hhmm_para_min(onda.fim);
+    if (minAtual < ini) return 'futura';
+    if (minAtual >= fim) return 'passada';
+    if (minAtual >= fim - ALERTA_MINUTOS_ANTES) return 'alerta';
+    return 'ativa';
+  }
+
+  // Placas atualmente no pátio (caminhões carregando agora)
+  function placasNoPatioAgora() {
+    var set = {};
+    caminhoes.forEach(function (c) { set[normPlacaF(c.placa)] = true; });
+    return set;
+  }
+
+  function carregarOndas() {
+    chamarWebApp({ action: 'getOndas' }, function (resp) {
+      if (resp && !resp.erro) {
+        ondasDados = resp.ondas || {};
+        ondasCarregadas = true;
+        renderOndas();
+      }
+    }, function () { /* falhou silenciosamente */ });
+  }
+
+  function renderOndas() {
+    var wrap = document.getElementById('ondasWrap');
+    if (!ondasCarregadas) { wrap.style.display = 'none'; return; }
+
+    // Só mostra o bloco de ondas no período de interesse (08:30–11:00)
+    var min = agora_min();
+    var INICIO_EXIBICAO = hhmm_para_min('08:30');
+    var FIM_EXIBICAO    = hhmm_para_min('11:00');
+    if (min < INICIO_EXIBICAO || min > FIM_EXIBICAO) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+
+    // Relógio
+    var agora = new Date();
+    document.getElementById('ondasRelogio').textContent =
+      '· ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    var noPatioAgora = placasNoPatioAgora();
+    var alertas = [];
+    var html = '';
+
+    ONDAS_CONFIG.forEach(function (onda) {
+      var placas = ondasDados[onda.num] || [];
+      var estado = estadoDaOnda(onda, min);
+      var ini = hhmm_para_min(onda.inicio);
+      var fim = hhmm_para_min(onda.fim);
+
+      var carregando = placas.filter(function (p) { return !!noPatioAgora[p]; });
+      var faltando   = placas.filter(function (p) { return !noPatioAgora[p]; });
+      var total      = placas.length;
+      var minParaFim = fim - min;
+
+      // Alertas para ondas ativas/em alerta
+      if ((estado === 'ativa' || estado === 'alerta') && faltando.length > 0) {
+        var critico = estado === 'alerta';
+        alertas.push({
+          critico: critico,
+          msg: '⚠️ ' + onda.nome + ': ' + faltando.length + ' rota' + (faltando.length > 1 ? 's' : '') +
+               ' ainda não entraram carregar' +
+               (critico ? ' · ❗ ' + Math.max(0, Math.round(minParaFim)) + 'min para fechar a onda!' : ''),
+          placas: faltando
+        });
+      }
+
+      // Card da onda
+      html += '<div class="onda-card onda-' + estado + '">';
+      html += '<div class="onda-header">';
+      html += '<span class="onda-nome">' + onda.nome + '</span>';
+      html += '<span class="onda-horario">' + onda.inicio + '–' + onda.fim + '</span>';
+      html += '</div>';
+
+      if (total === 0) {
+        html += '<div style="font-size:12px;color:var(--muted)">Sem rotas nesta onda</div>';
+      } else {
+        html += '<div class="onda-kpis">';
+        html += '<div class="onda-kpi tot"><div class="n">' + total + '</div><div class="l">Total</div></div>';
+        html += '<div class="onda-kpi ok"><div class="n">' + carregando.length + '</div><div class="l">Carregando</div></div>';
+        html += '<div class="onda-kpi falt"><div class="n">' + faltando.length + '</div><div class="l">Faltam</div></div>';
+        html += '</div>';
+
+        // Lista de placas com status
+        html += '<div class="onda-placas">';
+        placas.forEach(function (p) {
+          var estaCarr = !!noPatioAgora[p];
+          var cls = estaCarr ? 'carregando' : (estado === 'passada' ? 'saiu' : 'faltando');
+          var icone = estaCarr ? '✅' : (estado === 'passada' ? '–' : '🔴');
+          html += '<span class="onda-placa-item ' + cls + '">' + icone + ' ' + p + '</span>';
+        });
+        html += '</div>';
+      }
+
+      // Para ondas ativas: tempo restante
+      if (estado === 'ativa' || estado === 'alerta') {
+        var restMin = Math.max(0, Math.round(minParaFim));
+        html += '<div style="font-size:11px;color:var(--muted);margin-top:6px">';
+        html += (estado === 'alerta' ? '⚠️ ' : '⏱️ ') + restMin + 'min restantes';
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    document.getElementById('ondasGrid').innerHTML = html;
+
+    // Alertas
+    var alertasEl = document.getElementById('ondasAlertas');
+    if (alertas.length) {
+      alertasEl.innerHTML = alertas.map(function (a) {
+        return '<div class="onda-alerta-box' + (a.critico ? ' critico' : '') + '">' +
+               '<span style="font-size:18px">' + (a.critico ? '🚨' : '⚠️') + '</span>' +
+               '<span>' + a.msg + '</span></div>';
+      }).join('');
+    } else {
+      alertasEl.innerHTML = '';
+    }
+  }
 
   // ===== FILTRO TRAVADO VIA URL (quando aberto pelo hub) =====
   var TRANSP_TRAVADA = null;
@@ -895,6 +1121,7 @@
   function render() {
     if (modoAtual === 'patio') {
       renderPatio();
+      renderOndas();   // atualiza ondas junto com o pátio
     } else if (modoAtual === 'historico') {
       if (usuarioEditandoComentario()) return;
       renderHistorico();
@@ -902,8 +1129,10 @@
   }
 
   carregarPatio();
+  carregarOndas();   // carrega ondas na inicialização
   setInterval(function () {
     carregarPatio();
+    carregarOndas(); // recarrega ondas a cada ciclo (dados podem mudar)
     if (modoAtual === 'historico') carregarHistorico();
   }, REFETCH_MS);
   setInterval(function () { if (modoAtual === 'patio') render(); }, RETICK_MS);
