@@ -261,7 +261,7 @@
   .ondas-transp-kpi.falt .n { color: var(--vermelho); }
   .ondas-transp-kpi.tot  .n { color: #fff; }
 
-  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
   .tab-btn {
     background: transparent;
     border: 1px solid var(--border);
@@ -428,14 +428,74 @@
   .truck-card .bottom-row { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
   .truck-card.compacto .compact-line { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
+  /* ===== ONDAS POR CICLO (nova funcionalidade) ===== */
+  .ciclo-seletor { display: flex; gap: 8px; margin-bottom: 16px; }
+  .ciclo-btn {
+    background: var(--card-bg); border: 1.5px solid var(--border); color: var(--muted);
+    padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; flex: 1; text-align: center;
+  }
+  .ciclo-btn.ativo { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .ciclo-resumo-topo { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .ciclo-resumo-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 18px; text-align: center; min-width: 90px;
+  }
+  .ciclo-resumo-card .n { font-size: 24px; font-weight: 800; line-height: 1; }
+  .ciclo-resumo-card .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 3px; }
+  .ciclo-resumo-card.tot .n { color: #fff; }
+  .ciclo-resumo-card.ok  .n { color: var(--ok); }
+  .ciclo-resumo-card.falt .n { color: var(--vermelho); }
+  .ciclo-onda-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-left: 5px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 14px;
+  }
+  .ciclo-onda-card.co-futura  { border-left-color: var(--azul); }
+  .ciclo-onda-card.co-ativa   { border-left-color: var(--ok); }
+  .ciclo-onda-card.co-alerta  { border-left-color: var(--amarelo); animation: pisca-borda .9s ease-in-out infinite alternate; }
+  .ciclo-onda-card.co-passada { border-left-color: var(--border); opacity: .7; }
+  .ciclo-onda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+  .ciclo-onda-nome { font-size: 16px; font-weight: 800; }
+  .ciclo-onda-horario { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ciclo-onda-countdown { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .ciclo-onda-countdown.cd-normal { background: rgba(22,163,74,.15); color: #4ade80; }
+  .ciclo-onda-countdown.cd-alerta { background: rgba(242,201,76,.2); color: #f2c94c; }
+  .ciclo-onda-countdown.cd-passada { background: rgba(148,163,184,.15); color: var(--muted); }
+  .ciclo-driver-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .ciclo-driver-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 1fr 90px 110px;
+    gap: 10px; align-items: center;
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .ciclo-driver-row.entrou   { border-left-color: var(--ok); background: rgba(22,163,74,.08); }
+  .ciclo-driver-row.pendente { border-left-color: var(--vermelho); }
+  .cdr-placa  { font-weight: 800; font-size: 13px; }
+  .cdr-driver { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cdr-cidade { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cdr-modal  { font-size: 11px; color: var(--muted); }
+  .cdr-status { text-align: right; font-weight: 700; white-space: nowrap; }
+  .cdr-status.st-ok  { color: #4ade80; }
+  .cdr-status.st-pend { color: var(--vermelho); }
+  .ciclo-onda-alerta-box {
+    background: rgba(229,72,77,.15); border: 1px solid var(--vermelho);
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 10px;
+    animation: pisca-bg-v .8s ease-in-out infinite alternate;
+  }
+  @keyframes pisca-bg-v {
+    from { background: rgba(229,72,77,.10); }
+    to   { background: rgba(229,72,77,.25); }
+  }
   @media (max-width: 720px) {
-    body { padding: 14px; }
-    h1 { font-size: 20px; }
-    .cards { grid-template-columns: repeat(2, 1fr); }
-    table { display: none; }
-    .mobile-list { display: block; }
-    .chip { padding: 10px 16px; font-size: 14px; }
-    .tab-btn { padding: 10px 16px; font-size: 14px; flex: 1; text-align: center; }
+    .ondas-grid { grid-template-columns: 1fr 1fr; }
+    .ciclo-driver-row { grid-template-columns: 1fr; text-align: left; }
+    .cdr-status { text-align: left; }
   }
 </style>
 </head>
@@ -449,6 +509,7 @@
 <div class="tabs" id="tabs">
   <button class="tab-btn active" data-modo="patio">No pátio</button>
   <button class="tab-btn" data-modo="ondas">🌊 Ondas</button>
+  <button class="tab-btn" data-modo="ondasciclo">🚚 Ondas por Ciclo</button>
   <button class="tab-btn" data-modo="historico">Histórico de hoje</button>
   <button class="tab-btn" data-modo="feedback">💬 Feedback KN</button>
 </div>
@@ -542,6 +603,19 @@
     <div class="ondas-painel-titulo">🚨 Ofensores — histórico de ocorrências</div>
     <div id="ondasPainelOfensores"><div class="empty-state">Carregando...</div></div>
   </div>
+</div>
+
+<!-- VIEW: ONDAS POR CICLO (nova funcionalidade) -->
+<div id="ondasCicloWrap" style="display:none; max-width:960px;">
+  <div class="ciclo-seletor" id="cicloSeletor">
+    <button class="ciclo-btn" data-ciclo="AM" onclick="selecionarCiclo('AM')">🌅 AM</button>
+    <button class="ciclo-btn" data-ciclo="PM" onclick="selecionarCiclo('PM')">🌤 PM</button>
+    <button class="ciclo-btn" data-ciclo="SD" onclick="selecionarCiclo('SD')">🌙 SD</button>
+  </div>
+  <div class="subtitle" id="cicloRelogio" style="margin-top:-6px"></div>
+  <div class="ciclo-resumo-topo" id="cicloResumoTopo"></div>
+  <div id="cicloAlertas"></div>
+  <div id="cicloOndasContainer"><div class="empty-state">Carregando...</div></div>
 </div>
 
 <!-- MODAL: JUSTIFICATIVA DE ONDA -->
@@ -1336,6 +1410,167 @@
     render();
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // ONDAS POR CICLO (nova funcionalidade)
+  // Cruza AM_TRANSP / PM_TRANSP / SD_TRANSP com o pátio (entrada/saída)
+  // ══════════════════════════════════════════════════════════════════════
+  var ondasCicloDados = {};       // { AM: {ondas:[...]}, PM: {...}, SD: {...} }
+  var ondasCicloCarregado = false;
+  var cicloSelecionado = 'AM';
+  var ALERTA_MINUTOS_CICLO = 5;   // alerta nos últimos 5 minutos da onda
+
+  function detectarCicloAtual() {
+    var h = new Date().getHours();
+    if (h < 10) return 'AM';
+    if (h < 16) return 'PM';
+    return 'SD';
+  }
+
+  function carregarOndasCiclo() {
+    chamarWebApp({ action: 'getOndasCiclo' }, function (resp) {
+      if (resp && !resp.erro) {
+        ondasCicloDados = resp.ciclos || {};
+        ondasCicloCarregado = true;
+        renderOndasCiclo();
+      } else if (resp && resp.erro) {
+        mostrarErro('Ondas por Ciclo: ' + resp.erro);
+      }
+    }, function (msg) { mostrarErro(msg); });
+  }
+
+  function selecionarCiclo(c) {
+    cicloSelecionado = c;
+    Array.prototype.forEach.call(document.querySelectorAll('.ciclo-btn'), function(btn) {
+      btn.classList.toggle('ativo', btn.getAttribute('data-ciclo') === c);
+    });
+    renderOndasCiclo();
+  }
+
+  function estadoOndaCiclo(inicio, fim, minAtual) {
+    if (!inicio || !fim) return 'futura';
+    var ini = hhmm_para_min(inicio);
+    var fm  = hhmm_para_min(fim);
+    if (minAtual < ini) return 'futura';
+    if (minAtual >= fm) return 'passada';
+    if (minAtual >= fm - ALERTA_MINUTOS_CICLO) return 'alerta';
+    return 'ativa';
+  }
+
+  function renderOndasCiclo() {
+    if (!ondasCicloCarregado) return;
+
+    var agora = new Date();
+    document.getElementById('cicloRelogio').textContent =
+      '🕐 ' + agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+    // Marca botão ativo (primeira vez usa auto-detecção)
+    Array.prototype.forEach.call(document.querySelectorAll('.ciclo-btn'), function(btn) {
+      btn.classList.toggle('ativo', btn.getAttribute('data-ciclo') === cicloSelecionado);
+    });
+
+    var dadosCiclo = ondasCicloDados[cicloSelecionado] || { ondas: [] };
+    var ondasArr = dadosCiclo.ondas || [];
+
+    // Filtro por transportadora (login travado)
+    var loginNorm = (!IS_MELI && TRANSP_TRAVADA) ? normTranspOnda(TRANSP_TRAVADA) : null;
+
+    var min = agora_min();
+    var totalGeral = 0, entraramGeral = 0;
+    var alertasHtml = '';
+    var containerHtml = '';
+
+    if (ondasArr.length === 0) {
+      containerHtml = '<div class="empty-state">Nenhuma rota cadastrada para o ciclo ' + cicloSelecionado + '.</div>';
+    }
+
+    ondasArr.forEach(function(onda) {
+      var drivers = onda.drivers || [];
+      if (loginNorm) {
+        drivers = drivers.filter(function(d) { return normTranspOnda(d.transp) === loginNorm; });
+      }
+
+      var total    = drivers.length;
+      var entraram = drivers.filter(function(d) { return d.entrou; }).length;
+      var pendentes = total - entraram;
+
+      totalGeral += total;
+      entraramGeral += entraram;
+
+      if (total === 0) return; // pula ondas sem rotas (após filtro)
+
+      var estado = estadoOndaCiclo(onda.inicio, onda.fim, min);
+      var fimMin = onda.fim ? hhmm_para_min(onda.fim) : null;
+      var restam = fimMin !== null ? Math.max(0, Math.round(fimMin - min)) : null;
+
+      // Alerta: onda ativa/alerta com pendentes
+      if ((estado === 'ativa' || estado === 'alerta') && pendentes > 0) {
+        alertasHtml += '<div class="ciclo-onda-alerta-box">' +
+          '<span style="font-size:18px">' + (estado === 'alerta' ? '🚨' : '⚠️') + '</span>' +
+          '<span>Onda ' + onda.onda + ' (' + cicloSelecionado + '): ' + pendentes +
+          ' motorista' + (pendentes > 1 ? 's' : '') + ' ainda não entrou' +
+          (estado === 'alerta' ? ' · faltam ' + restam + 'min!' : '') + '</span></div>';
+      }
+
+      // Countdown badge
+      var countdownHtml = '';
+      if (estado === 'ativa') {
+        countdownHtml = '<span class="ciclo-onda-countdown cd-normal">⏱️ ' + restam + 'min restantes</span>';
+      } else if (estado === 'alerta') {
+        countdownHtml = '<span class="ciclo-onda-countdown cd-alerta">🚨 ' + restam + 'min — ÚLTIMOS MINUTOS!</span>';
+      } else if (estado === 'passada') {
+        countdownHtml = '<span class="ciclo-onda-countdown cd-passada">Encerrada</span>';
+      } else {
+        countdownHtml = '<span class="ciclo-onda-countdown cd-passada">Aguardando início</span>';
+      }
+
+      // Ordena: pendentes primeiro, depois quem entrou
+      drivers = drivers.slice().sort(function(a, b) {
+        if (a.entrou === b.entrou) return 0;
+        return a.entrou ? 1 : -1;
+      });
+
+      var driversHtml = drivers.map(function(d) {
+        var horaEntrada = d.entradaISO
+          ? new Date(d.entradaISO).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+          : '';
+        var statusHtml = d.entrou
+          ? '<span class="cdr-status st-ok">✅ ' + horaEntrada + '</span>'
+          : '<span class="cdr-status st-pend">⏳ Pendente</span>';
+        return '<div class="ciclo-driver-row ' + (d.entrou ? 'entrou' : 'pendente') + '">' +
+          '<div class="cdr-placa">' + esc(d.placa) + '</div>' +
+          '<div class="cdr-driver" title="' + esc(d.driver) + '">' + esc(d.driver || '—') + '</div>' +
+          '<div class="cdr-cidade" title="' + esc(d.cidade) + '">' + esc(d.cidade || '—') + '</div>' +
+          '<div class="cdr-modal">' + esc(d.modal || '—') + '</div>' +
+          statusHtml +
+          '</div>';
+      }).join('');
+
+      containerHtml += '<div class="ciclo-onda-card co-' + estado + '">' +
+        '<div class="ciclo-onda-header">' +
+          '<span class="ciclo-onda-nome">🌊 Onda ' + esc(onda.onda) + '</span>' +
+          '<span class="ciclo-onda-horario">' + (onda.inicio||'—') + ' – ' + (onda.fim||'—') + '</span>' +
+          countdownHtml +
+        '</div>' +
+        '<div class="onda-kpis">' +
+          '<div class="onda-kpi tot"><div class="n">' + total + '</div><div class="l">Total</div></div>' +
+          '<div class="onda-kpi ok"><div class="n">' + entraram + '</div><div class="l">Entraram</div></div>' +
+          '<div class="onda-kpi falt"><div class="n">' + pendentes + '</div><div class="l">Pendentes</div></div>' +
+        '</div>' +
+        '<div class="ciclo-driver-list">' + driversHtml + '</div>' +
+      '</div>';
+    });
+
+    document.getElementById('cicloAlertas').innerHTML = alertasHtml;
+    document.getElementById('cicloOndasContainer').innerHTML = containerHtml ||
+      '<div class="empty-state">Nenhuma rota para exibir.</div>';
+
+    var pendGeral = totalGeral - entraramGeral;
+    document.getElementById('cicloResumoTopo').innerHTML =
+      '<div class="ciclo-resumo-card tot"><div class="n">' + totalGeral + '</div><div class="l">Total ' + cicloSelecionado + '</div></div>' +
+      '<div class="ciclo-resumo-card ok"><div class="n">' + entraramGeral + '</div><div class="l">Entraram</div></div>' +
+      '<div class="ciclo-resumo-card falt"><div class="n">' + pendGeral + '</div><div class="l">Pendentes</div></div>';
+  }
+
   function trocarModo(modo) {
     modoAtual = modo;
     Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (btn) {
@@ -1346,14 +1581,23 @@
     document.getElementById('tabelaPatio').style.display       = modo === 'patio' ? '' : 'none';
     document.getElementById('tabelaHistorico').style.display   = modo === 'historico' ? '' : 'none';
     document.getElementById('ondasPainelWrap').style.display   = modo === 'ondas' ? 'block' : 'none';
+    document.getElementById('ondasCicloWrap').style.display    = modo === 'ondasciclo' ? 'block' : 'none';
     var ehFeedback = (modo === 'feedback');
     document.getElementById('feedbackWrap').style.display      = ehFeedback ? 'block' : 'none';
-    document.getElementById('mobileList').style.display        = (ehFeedback || modo === 'ondas') ? 'none' : '';
+    document.getElementById('mobileList').style.display        = (ehFeedback || modo === 'ondas' || modo === 'ondasciclo') ? 'none' : '';
     var _filtrosEl = document.getElementById('filtros');
-    if (_filtrosEl) _filtrosEl.style.display = (ehFeedback || modo === 'ondas') ? 'none' : '';
+    if (_filtrosEl) _filtrosEl.style.display = (ehFeedback || modo === 'ondas' || modo === 'ondasciclo') ? 'none' : '';
 
     if (modo === 'historico' && !historicoCarregado) carregarHistorico();
     if (modo === 'ondas') { carregarHistOndas(renderOndasPainel); }
+    if (modo === 'ondasciclo') {
+      if (!ondasCicloCarregado) {
+        cicloSelecionado = detectarCicloAtual();
+        carregarOndasCiclo();
+      } else {
+        renderOndasCiclo();
+      }
+    }
     render();
   }
 
@@ -1624,6 +1868,8 @@
       renderHistorico();
     } else if (modoAtual === 'ondas') {
       renderOndasPainel();
+    } else if (modoAtual === 'ondasciclo') {
+      renderOndasCiclo();
     }
   }
 
@@ -1634,8 +1880,9 @@
     carregarPatio();
     carregarOndas();
     if (modoAtual === 'historico') carregarHistorico();
+    if (modoAtual === 'ondasciclo') carregarOndasCiclo();
   }, REFETCH_MS);
-  setInterval(function () { if (modoAtual === 'patio' || modoAtual === 'ondas') render(); }, RETICK_MS);
+  setInterval(function () { if (modoAtual === 'patio' || modoAtual === 'ondas' || modoAtual === 'ondasciclo') render(); }, RETICK_MS);
 </script>
 
 </body>
