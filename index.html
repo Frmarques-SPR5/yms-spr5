@@ -262,6 +262,45 @@
   .ondas-transp-kpi.tot  .n { color: #fff; }
 
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+
+  /* ===== REFERÊNCIA DE HORÁRIOS DAS ONDAS ===== */
+  .horarios-ondas-ref {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 16px;
+  }
+  .horarios-ondas-ref summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    list-style: none;
+    user-select: none;
+  }
+  .horarios-ondas-ref summary::-webkit-details-marker { display: none; }
+  .horarios-ondas-ref summary::before { content: '▸ '; color: var(--muted); }
+  .horarios-ondas-ref[open] summary::before { content: '▾ '; }
+  .horarios-ondas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .hoc-titulo { font-size: 13px; font-weight: 800; margin-bottom: 6px; }
+  .hoc-linha {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 3px 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .hoc-linha span:first-child { color: var(--text); font-weight: 600; }
+
   .tab-btn {
     background: transparent;
     border: 1px solid var(--border);
@@ -512,6 +551,29 @@
   <button class="tab-btn" data-modo="historico">Histórico de hoje</button>
   <button class="tab-btn" data-modo="feedback">💬 Feedback KN</button>
 </div>
+
+<details class="horarios-ondas-ref">
+  <summary>🕐 Consultar horários das ondas</summary>
+  <div class="horarios-ondas-grid">
+    <div class="horarios-ondas-col">
+      <div class="hoc-titulo">🌅 AM</div>
+      <div class="hoc-linha"><span>Onda 1</span><span>06:15 – 06:52</span></div>
+      <div class="hoc-linha"><span>Onda 2</span><span>06:45 – 07:22</span></div>
+      <div class="hoc-linha"><span>Onda 3</span><span>07:15 – 07:52</span></div>
+      <div class="hoc-linha"><span>Onda 4</span><span>07:45 – 08:22</span></div>
+    </div>
+    <div class="horarios-ondas-col">
+      <div class="hoc-titulo">🌤 PM</div>
+      <div class="hoc-linha"><span>Onda 1</span><span>10:45 – 11:37</span></div>
+      <div class="hoc-linha"><span>Onda 2</span><span>11:30 – 12:07</span></div>
+      <div class="hoc-linha"><span>Onda 3</span><span>12:00 – 12:37</span></div>
+    </div>
+    <div class="horarios-ondas-col">
+      <div class="hoc-titulo">🌙 SD</div>
+      <div class="hoc-linha"><span>Onda 1</span><span>17:15 – 17:45</span></div>
+    </div>
+  </div>
+</details>
 
 <div class="filtros" id="filtros"></div>
 
