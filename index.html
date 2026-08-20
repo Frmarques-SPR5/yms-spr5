@@ -517,10 +517,6 @@
 
 <div class="cards" id="cardsPatio">
   <div class="card total"><div class="num" id="cardTotal">–</div><div class="label">No pátio</div></div>
-  <div class="card ok"><div class="num" id="cardOk">–</div><div class="label">Normal (&lt;15min)</div></div>
-  <div class="card amarelo"><div class="num" id="cardAmarelo">–</div><div class="label">⚠️ 15–20min</div></div>
-  <div class="card laranja"><div class="num" id="cardLaranja">–</div><div class="label">Atenção⚠️ 20–25min</div></div>
-  <div class="card vermelho"><div class="num" id="cardVermelho">–</div><div class="label">Possível ofensora⚠️ 25min+</div></div>
 </div>
 
 <table id="tabelaPatio">
@@ -528,15 +524,14 @@
     <tr>
       <th>Placa</th>
       <th>Vaga</th>
-      <th class="col-secundaria">Tipo de veículo</th>
       <th class="col-secundaria">Transportadora</th>
       <th>Entrada</th>
-      <th class="col-secundaria">Tempo no pátio</th>
+      <th>Onda</th>
       <th>Monitoramento</th>
     </tr>
   </thead>
   <tbody id="tableBody">
-    <tr><td colspan="7" class="empty-state">Carregando...</td></tr>
+    <tr><td colspan="6" class="empty-state">Carregando...</td></tr>
   </tbody>
 </table>
 
@@ -616,6 +611,27 @@
   var FILTRO_STORAGE_KEY = 'ymsFiltroTransportadora';
   var aduanaPorPlaca = {};
 
+  // ===== Helpers de tempo/placa/transportadora (usados no pátio e no ciclo) =====
+  function hhmm_para_min(s) {
+    var p = String(s || '').split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
+  function agora_min() {
+    var a = new Date();
+    return a.getHours() * 60 + a.getMinutes() + a.getSeconds() / 60;
+  }
+  function normPlacaF(placa) {
+    // Trata: "SDD-RFQ9E69", "SDD-RFQ-9E69", "SDD RFQ9E69", "RFQ-9E69", etc.
+    var s = String(placa || '').trim().toUpperCase();
+    s = s.replace(/^SDD[\s\-]*/i, '');
+    s = s.replace(/[^A-Z0-9]/g, '');
+    return s;
+  }
+  function normTranspOnda(t) {
+    return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .trim().replace(/\s+/g, ' ').toUpperCase();
+  }
+
   // ===== FILTRO TRAVADO VIA URL (quando aberto pelo hub) =====
   var TRANSP_TRAVADA = null;
   (function () {
@@ -676,12 +692,17 @@
             transportadora: item.transportadora || '',
             entrada: new Date(item.entradaISO),
             confirmadoEm: item.confirmadoEmISO ? new Date(item.confirmadoEmISO) : null,
-            confirmacaoCount: item.confirmacaoCount || 0
+            confirmacaoCount: item.confirmacaoCount || 0,
+            onda: item.onda || '',
+            ciclo: item.ciclo || '',
+            ondaInicio: item.ondaInicio || '',
+            ondaFim: item.ondaFim || '',
+            ondaCidade: item.ondaCidade || ''
           };
         });
         document.getElementById('subtitle').textContent =
           'Atualizado às ' + new Date().toLocaleTimeString('pt-BR') + ' • atualiza sozinho a cada 30s';
-        carregarAduana(render);
+        render();
       } catch (err) {
         mostrarErro('Erro lendo os dados: ' + err.message);
       }
@@ -797,13 +818,6 @@
     });
   }
 
-  function classificar(minutos) {
-    if (minutos >= 25) return { tier: 'vermelho', label: 'Possível ofensora⚠️' };
-    if (minutos >= 20) return { tier: 'laranja', label: 'Atenção⚠️' };
-    if (minutos >= 15) return { tier: 'amarelo', label: '⚠️' };
-    return { tier: 'ok', label: '' };
-  }
-
   function fmtTempo(minutosTotais) {
     if (minutosTotais == null || isNaN(minutosTotais)) return '—';
     var totalSeg = Math.floor(minutosTotais * 60);
@@ -881,10 +895,14 @@
     return 'SD';
   }
 
-  function carregarOndasCiclo() {
-    chamarWebApp({ action: 'getOndasCiclo' }, function (resp) {
+  function carregarOndasCiclo(cicloParam) {
+    var alvo = cicloParam || cicloSelecionado;
+    // Busca só o ciclo pedido — bem mais rápido que buscar os 3 de uma vez
+    chamarWebApp({ action: 'getOndasCiclo', ciclo: alvo }, function (resp) {
       if (resp && !resp.erro) {
-        ondasCicloDados = resp.ciclos || {};
+        var recebido = resp.ciclos || {};
+        // Mescla no cache (mantém dados de outros ciclos já carregados)
+        Object.keys(recebido).forEach(function(c) { ondasCicloDados[c] = recebido[c]; });
         ondasCicloCarregado = true;
         renderOndasCiclo();
       } else if (resp && resp.erro) {
@@ -898,7 +916,12 @@
     Array.prototype.forEach.call(document.querySelectorAll('.ciclo-btn'), function(btn) {
       btn.classList.toggle('ativo', btn.getAttribute('data-ciclo') === c);
     });
-    renderOndasCiclo();
+    if (ondasCicloDados[c]) {
+      renderOndasCiclo(); // já em cache — troca instantânea
+    } else {
+      renderOndasCiclo(); // mostra "carregando" enquanto busca
+      carregarOndasCiclo(c);
+    }
   }
 
   function estadoOndaCiclo(inicio, fim, minAtual) {
@@ -1066,15 +1089,53 @@
     return { compacto: !precisaReconfirmar, minutosAteProximaChecagem: minutosAteProximaChecagem };
   }
 
+  // Calcula estado/label da onda de um caminhão (reaproveita hhmm_para_min/agora_min)
+  function estadoOndaPatio(c) {
+    if (!c.onda) return { temOnda: false };
+    if (!c.ondaInicio || !c.ondaFim) return { temOnda: true, label: c.ciclo + ' · Onda ' + c.onda, estado: 'semhorario' };
+    var min = agora_min();
+    var ini = hhmm_para_min(c.ondaInicio);
+    var fim = hhmm_para_min(c.ondaFim);
+    var estado, restam = Math.round(fim - min);
+    if (min < ini)       estado = 'futura';
+    else if (min >= fim) estado = 'passada';
+    else if (min >= fim - 5) estado = 'alerta';
+    else estado = 'ativa';
+    return { temOnda: true, estado: estado, restam: restam, ini: c.ondaInicio, fim: c.ondaFim, ciclo: c.ciclo, onda: c.onda };
+  }
+
+  function badgeOndaHtml(c) {
+    var info = estadoOndaPatio(c);
+    if (!info.temOnda) return '<span style="color:var(--muted);font-size:12px">— sem onda</span>';
+    if (info.estado === 'semhorario') {
+      return '<span class="badge" style="background:rgba(37,99,235,.18);color:#93c5fd">' + esc(info.label) + '</span>';
+    }
+    var cls, texto;
+    if (info.estado === 'alerta') {
+      cls = 'badge-vermelho'; texto = info.ciclo + ' Onda ' + info.onda + ' · 🚨 ' + Math.max(0, info.restam) + 'min restantes';
+    } else if (info.estado === 'ativa') {
+      cls = 'badge-ok'; texto = info.ciclo + ' Onda ' + info.onda + ' · ⏱️ ' + Math.max(0, info.restam) + 'min restantes';
+    } else if (info.estado === 'passada') {
+      cls = 'badge-laranja'; texto = info.ciclo + ' Onda ' + info.onda + ' · encerrada';
+    } else {
+      cls = 'badge-amarelo'; texto = info.ciclo + ' Onda ' + info.onda + ' · ' + info.ini + '–' + info.fim;
+    }
+    return '<span class="badge ' + cls + '">' + esc(texto) + '</span>';
+  }
+
+  function monitoramentoHtml(c) {
+    if (c.compacto) {
+      return '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
+        '<div class="proxima-checagem">próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>';
+    }
+    return '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
+  }
+
   function renderPatio() {
     var agora = new Date();
     var todosEnriquecidos = caminhoes.map(function (c) {
-      var minutos = (agora.getTime() - c.entrada.getTime()) / 60000;
-      var status = classificar(minutos);
       var estado = calcularEstadoMonitoramento(c, agora);
       return Object.assign({}, c, {
-        minutos: minutos,
-        status: status,
         transportadoraNormalizada: normalizarTransportadora(c.transportadora),
         compacto: estado.compacto,
         minutosAteProximaChecagem: estado.minutosAteProximaChecagem
@@ -1087,15 +1148,16 @@
       ? todosEnriquecidos
       : todosEnriquecidos.filter(function (c) { return c.transportadoraNormalizada === filtroAtual; });
 
-    enriquecido.sort(function (a, b) { return b.minutos - a.minutos; });
+    // Ordena: quem está em alerta de onda primeiro, depois por entrada
+    enriquecido.sort(function (a, b) {
+      var ea = estadoOndaPatio(a), eb = estadoOndaPatio(b);
+      var pa = ea.estado === 'alerta' ? 0 : 1;
+      var pb = eb.estado === 'alerta' ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return a.entrada - b.entrada;
+    });
 
-    var counts = { ok: 0, amarelo: 0, laranja: 0, vermelho: 0 };
-    enriquecido.forEach(function (c) { counts[c.status.tier]++; });
     document.getElementById('cardTotal').textContent = enriquecido.length;
-    document.getElementById('cardOk').textContent = counts.ok;
-    document.getElementById('cardAmarelo').textContent = counts.amarelo;
-    document.getElementById('cardLaranja').textContent = counts.laranja;
-    document.getElementById('cardVermelho').textContent = counts.vermelho;
 
     var tbody = document.getElementById('tableBody');
     var mobileList = document.getElementById('mobileList');
@@ -1104,66 +1166,37 @@
       var msgVazio = filtroAtual === 'TODAS'
         ? 'Nenhum caminhão no pátio no momento 🎉'
         : 'Nenhum caminhão de "' + filtroAtual + '" no pátio no momento 🎉';
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msgVazio + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + msgVazio + '</td></tr>';
       mobileList.innerHTML = '<div class="empty-state">' + msgVazio + '</div>';
       return;
     }
 
-    function monitoramentoHtml(c) {
-      var aduanaAtiva = estaComAduana(c.placa);
-      var btnAduana = '<button class="btn-aduana' + (aduanaAtiva ? ' ativa' : '') + '" data-placa-aduana="' + c.placa + '">🛃 Aduana' + (aduanaAtiva ? ' ✓' : '') + '</button>';
-      var monitor;
-      if (c.compacto) {
-        monitor = '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
-          '<div class="proxima-checagem">próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>';
-      } else {
-        monitor = '<button class="btn-confirmar" data-placa="' + c.placa + '">👁️ Confirmar monitoramento</button>';
-      }
-      return '<div class="acoes-wrap">' + monitor + btnAduana + '</div>';
-    }
-
     tbody.innerHTML = enriquecido.map(function (c) {
-      var trClass = c.compacto ? 'row-compacta' : 'row-' + c.status.tier;
-      var statusColSecundaria = c.compacto ? '' : (c.status.label ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>' : '<span class="badge badge-ok">no prazo</span>');
+      var info = estadoOndaPatio(c);
+      var trClass = info.estado === 'alerta' ? 'row-vermelho' : '';
       return '<tr class="' + trClass + '">' +
-        '<td><strong>' + c.placa + '</strong></td>' +
-        '<td>' + c.vaga + '</td>' +
-        '<td class="col-secundaria">' + c.tipo + '</td>' +
-        '<td class="col-secundaria">' + c.transportadora + '</td>' +
+        '<td><strong>' + esc(c.placa) + '</strong></td>' +
+        '<td>' + esc(c.vaga) + '</td>' +
+        '<td class="col-secundaria">' + esc(c.transportadora) + '</td>' +
         '<td>' + fmtHora(c.entrada) + '</td>' +
-        '<td class="tempo col-secundaria">' + fmtTempo(c.minutos) + (statusColSecundaria ? ' ' + statusColSecundaria : '') + '</td>' +
+        '<td>' + badgeOndaHtml(c) + '</td>' +
         '<td>' + monitoramentoHtml(c) + '</td>' +
         '</tr>';
     }).join('');
 
     mobileList.innerHTML = enriquecido.map(function (c) {
-      if (c.compacto) {
-        var aduanaAtivaC = estaComAduana(c.placa);
-        var btnAduanaC = '<button class="btn-aduana' + (aduanaAtivaC ? ' ativa' : '') + '" data-placa-aduana="' + c.placa + '">🛃 Aduana' + (aduanaAtivaC ? ' ✓' : '') + '</button>';
-        return '<div class="truck-card compacto">' +
-          '<div class="top-row">' +
-            '<span class="placa">' + c.placa + ' · Vaga ' + (c.vaga || '—') + '</span>' +
-            '<span class="selo-monitorado"><span class="ponto"></span>Monitorado</span>' +
-          '</div>' +
-          '<div class="compact-line">Carregando desde ' + fmtHora(c.entrada) + ' · próx. checagem em ' + Math.ceil(c.minutosAteProximaChecagem) + 'min</div>' +
-          '<div class="bottom-row" style="margin-top:8px; justify-content:flex-end;">' + btnAduanaC + '</div>' +
-        '</div>';
-      }
-      var badge = c.status.label
-        ? '<span class="badge badge-' + c.status.tier + '">' + c.status.label + '</span>'
-        : '<span class="badge badge-ok">no prazo</span>';
-      return '<div class="truck-card tier-' + c.status.tier + '">' +
+      var info = estadoOndaPatio(c);
+      var cardClass = info.estado === 'alerta' ? 'tier-vermelho' : 'tier-ok';
+      return '<div class="truck-card ' + cardClass + '">' +
         '<div class="top-row">' +
-          '<span class="placa">' + c.placa + '</span>' +
-          '<span class="tempo-mobile">' + fmtTempo(c.minutos) + '</span>' +
+          '<span class="placa">' + esc(c.placa) + '</span>' +
+          '<span>' + fmtHora(c.entrada) + '</span>' +
         '</div>' +
         '<div class="info-grid">' +
           '<div><div class="label">Vaga</div><div>' + (c.vaga || '—') + '</div></div>' +
-          '<div><div class="label">Entrada</div><div>' + fmtHora(c.entrada) + '</div></div>' +
-          '<div><div class="label">Tipo</div><div>' + (c.tipo || '—') + '</div></div>' +
           '<div><div class="label">Transportadora</div><div>' + (c.transportadora || '—') + '</div></div>' +
-          '<div><div class="label">Status</div><div>' + badge + '</div></div>' +
         '</div>' +
+        '<div style="margin-top:8px">' + badgeOndaHtml(c) + '</div>' +
         '<div class="bottom-row">' + monitoramentoHtml(c) + '</div>' +
       '</div>';
     }).join('');
@@ -1171,12 +1204,6 @@
     Array.prototype.forEach.call(document.querySelectorAll('.btn-confirmar'), function (btn) {
       btn.addEventListener('click', function () {
         confirmarMonitoramento(btn.getAttribute('data-placa'), btn);
-      });
-    });
-
-    Array.prototype.forEach.call(document.querySelectorAll('.btn-aduana'), function (btn) {
-      btn.addEventListener('click', function () {
-        marcarAduana(btn.getAttribute('data-placa-aduana'), btn);
       });
     });
 
