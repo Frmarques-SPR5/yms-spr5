@@ -674,7 +674,11 @@
     return a.getHours() * 60 + a.getMinutes() + a.getSeconds() / 60;
   }
   function normPlacaF(placa) {
-    return String(placa || '').trim().toUpperCase().replace(/^SDD-/i, '');
+    // Trata: "SDD-RFQ9E69", "SDD-RFQ-9E69", "SDD RFQ9E69", "RFQ-9E69", etc.
+    var s = String(placa || '').trim().toUpperCase();
+    s = s.replace(/^SDD[\s\-]*/i, '');  // remove prefixo "SDD", "SDD-", "SDD "
+    s = s.replace(/[^A-Z0-9]/g, '');    // remove qualquer hífen/espaço restante
+    return s;
   }
   function estadoDaOnda(onda, minAtual) {
     var ini = hhmm_para_min(onda.inicio);
